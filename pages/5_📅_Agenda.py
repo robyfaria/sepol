@@ -10,11 +10,12 @@ from utils.db import (
     get_pessoas, get_obras, get_orcamentos_por_obra, get_fases_por_orcamento
 )
 from utils.auditoria import audit_insert, audit_delete, audit_update
-from utils.layout import render_sidebar
+from utils.layout import render_sidebar, render_top_logo
 
 # Requer autenticação
 profile = require_auth()
 render_sidebar(profile)
+render_top_logo()
 
 st.title("📅 Agenda de Alocações")
 
