@@ -5,6 +5,7 @@ Interface 60+ friendly com Supabase como backend
 
 import streamlit as st
 from utils.auth import init_supabase, login, logout, get_current_user, get_user_profile
+from utils.layout import render_logo, render_sidebar
 
 # Configuração da página
 st.set_page_config(
@@ -94,6 +95,7 @@ def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
+        render_logo(width=200)
         st.markdown("""
         <div style="text-align: center; padding: 40px 0;">
             <h1 style="color: #1a5276;">🎨 Gestão de Obras</h1>
@@ -149,40 +151,7 @@ def show_login_page():
 def show_home_page(user_profile):
     """Exibe a página inicial após login"""
     
-    # Sidebar com info do usuário
-    with st.sidebar:
-        st.markdown(f"""
-        <div style="padding: 20px; background: #f0f2f6; border-radius: 10px; margin-bottom: 20px;">
-            <h3 style="margin: 0;">👤 {user_profile['usuario']}</h3>
-            <p style="margin: 5px 0; color: #666;">Perfil: <strong>{user_profile['perfil']}</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("🚪 Sair", use_container_width=True):
-            logout()
-            st.rerun()
-        
-        st.markdown("---")
-        st.markdown("### 📌 Menu Rápido")
-        
-        # Menu baseado no perfil
-        menu_items = [
-            ("🏠 Obras", "1_🏠_Obras"),
-            ("👥 Clientes", "2_👥_Clientes"),
-            ("👷 Pessoas", "3_👷_Pessoas"),
-            ("📋 Orçamentos", "4_📋_Orcamentos"),
-            ("📅 Agenda", "5_📅_Agenda"),
-        ]
-        
-        if user_profile['perfil'] == 'ADMIN':
-            menu_items.extend([
-                ("💰 Financeiro", "6_💰_Financeiro"),
-                ("⚙️ Configurações", "7_⚙️_Configuracoes"),
-            ])
-        
-        for label, page in menu_items:
-            if st.button(label, use_container_width=True):
-                st.switch_page(f"pages/{page}.py")
+    render_sidebar(user_profile)
     
     # Conteúdo principal
     st.markdown(f"""

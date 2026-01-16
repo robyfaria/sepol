@@ -13,9 +13,11 @@ from utils.db import (
     get_apontamentos
 )
 from utils.auditoria import audit_insert, audit_update, audit_delete
+from utils.layout import render_sidebar
 
 # Requer ADMIN
 profile = require_admin()
+render_sidebar(profile)
 
 st.title("💰 Financeiro")
 
