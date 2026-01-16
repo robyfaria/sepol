@@ -7,7 +7,10 @@ from fpdf import FPDF
 from datetime import datetime
 from io import BytesIO
 from typing import Optional
+from pathlib import Path
 from utils.auth import get_supabase_client
+
+LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
 
 
 class OrcamentoPDF(FPDF):
@@ -16,9 +19,13 @@ class OrcamentoPDF(FPDF):
     def __init__(self):
         super().__init__()
         self.set_auto_page_break(auto=True, margin=15)
+        self.logo_path = LOGO_PATH if LOGO_PATH.exists() else None
         
     def header(self):
         """Cabeçalho do PDF"""
+        if self.logo_path:
+            self.image(str(self.logo_path), x=10, y=8, w=18)
+            self.set_y(10)
         self.set_font('Helvetica', 'B', 20)
         self.set_text_color(26, 82, 118)  # Azul escuro
         self.cell(0, 10, 'ORÇAMENTO DE PINTURA', ln=True, align='C')

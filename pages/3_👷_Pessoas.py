@@ -6,9 +6,11 @@ import streamlit as st
 from utils.auth import require_auth
 from utils.db import get_pessoas, get_pessoa, create_pessoa, update_pessoa
 from utils.auditoria import audit_insert, audit_update
+from utils.layout import render_sidebar
 
 # Requer autenticação
 profile = require_auth()
+render_sidebar(profile)
 
 st.title("👷 Profissionais")
 
