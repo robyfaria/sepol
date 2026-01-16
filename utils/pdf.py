@@ -208,7 +208,8 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
     )
     
     # Retorna os bytes do PDF
-    return pdf.output()
+    pdf_bytes = pdf.output(dest="S")
+    return bytes(pdf_bytes)
 
 
 def salvar_pdf_storage(pdf_bytes: bytes, orcamento_id: int, obra_titulo: str) -> Optional[str]:
