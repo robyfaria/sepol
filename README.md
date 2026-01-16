@@ -83,7 +83,7 @@ Clique em "Deploy" e aguarde. Seu app estará disponível em uma URL pública.
 ## Estrutura do Projeto
 
 ```
-streamlit-obras/
+repo(sepol)/
 ├── app.py                 # Página principal e login
 ├── pages/
 │   ├── 1_🏠_Obras.py
@@ -103,6 +103,7 @@ streamlit-obras/
 │   └── schema_reference.sql
 ├── requirements.txt
 ├── README.md
+├── .gitignore
 └── .env.example
 ```
 
