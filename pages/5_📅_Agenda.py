@@ -38,12 +38,13 @@ with col2:
     data_selecionada = st.date_input(
         "📆 Data",
         value=st.session_state['data_agenda'],
-        key="input_data_agenda"
+        key="data_agenda"
     )
-    st.session_state['data_agenda'] = data_selecionada
 
 with col3:
     if st.button("➡️ Próximo Dia"):
+        if 'data_agenda' not in st.session_state:
+            st.session_state['data_agenda'] = date.today()
         st.session_state['data_agenda'] = st.session_state['data_agenda'] + timedelta(days=1)
         st.rerun()
 
