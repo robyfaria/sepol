@@ -172,7 +172,7 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
         
         # Subtotal da fase
         pdf.set_font('Helvetica', 'B', 10)
-        subtotal_label = "Subtotal:"
+        subtotal_label = "Mão-de-obra:"
         label_width = pdf.epw * 0.7
         value_width = pdf.epw - label_width
         line_height = 6
