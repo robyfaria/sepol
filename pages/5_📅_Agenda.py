@@ -182,13 +182,15 @@ with st.form("form_nova_alocacao"):
         orcamento_id = st.selectbox(
             "📋 Orçamento",
             options=[o['id'] for o in orc_options],
-            format_func=lambda x: next((o['label'] for o in orc_options if o['id'] == x), '-')
+            format_func=lambda x: next((o['label'] for o in orc_options if o['id'] == x), '-'),
+            key="form_orcamento_id",
         )
     
     with col2:
         # Fases do orçamento selecionado
-        if orcamento_id:
-            fases = get_fases_por_orcamento(orcamento_id)
+        orcamento_selecionado = st.session_state.get("form_orcamento_id")
+        if orcamento_selecionado:
+            fases = get_fases_por_orcamento(orcamento_selecionado)
             fase_options = [{'id': None, 'label': '-- Nenhuma --'}] + [
                 {'id': f['id'], 'label': f['nome_fase']} 
                 for f in fases
