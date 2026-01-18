@@ -7,9 +7,11 @@ from datetime import date
 from utils.auth import require_admin
 from utils.db import (
     get_recebimentos, create_recebimento, update_recebimento_status,
+    update_recebimento, delete_recebimento,
     get_pagamentos, get_pagamento_itens, create_pagamento, update_pagamento_status,
+    update_pagamento, delete_pagamento,
     create_pagamento_item, delete_pagamento_item,
-    get_fases_por_orcamento, get_obras, get_orcamentos_por_obra,
+    get_fases_por_orcamento, get_recebimentos_por_orcamento, get_obras, get_orcamentos_por_obra,
     get_apontamentos
 )
 from utils.auditoria import audit_insert, audit_update, audit_delete
@@ -22,6 +24,15 @@ render_top_logo()
 
 st.title("💰 Financeiro")
 
+if 'receb_edit_id' not in st.session_state:
+    st.session_state['receb_edit_id'] = None
+if 'pag_edit_id' not in st.session_state:
+    st.session_state['pag_edit_id'] = None
+if 'rec_desconto_rateio' not in st.session_state:
+    st.session_state['rec_desconto_rateio'] = {}
+if 'rec_valor_fase_id' not in st.session_state:
+    st.session_state['rec_valor_fase_id'] = None
+
 tab1, tab2 = st.tabs(["📥 Recebimentos", "📤 Pagamentos"])
 
 # ============================================
@@ -31,15 +42,29 @@ tab1, tab2 = st.tabs(["📥 Recebimentos", "📤 Pagamentos"])
 with tab1:
     st.markdown("### 📥 Recebimentos por Fase")
     
-    # Filtro de status
-    status_filter = st.selectbox(
-        "Filtrar por Status",
-        options=['', 'ABERTO', 'VENCIDO', 'PAGO', 'CANCELADO'],
-        format_func=lambda x: 'Todos' if x == '' else x,
-        key="filter_receb"
-    )
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        busca_receb = st.text_input(
+            "🔍 Buscar",
+            placeholder="Obra ou fase...",
+            key="busca_receb"
+        )
+    with col2:
+        status_filter = st.selectbox(
+            "Situação",
+            options=[None, 'ABERTO', 'VENCIDO', 'PAGO', 'CANCELADO'],
+            format_func=lambda x: 'Todos' if x is None else x,
+            key="filter_receb"
+        )
     
-    recebimentos = get_recebimentos(status=status_filter if status_filter else None)
+    recebimentos = get_recebimentos(status=status_filter)
+    if busca_receb:
+        busca_lower = busca_receb.lower()
+        recebimentos = [
+            rec for rec in recebimentos
+            if busca_lower in (rec.get('obra_fases', {}).get('nome_fase', '') or '').lower()
+            or busca_lower in (rec.get('obra_fases', {}).get('obras', {}).get('titulo', '') or '').lower()
+        ]
     
     if not recebimentos:
         st.info("📋 Nenhum recebimento encontrado.")
@@ -75,25 +100,105 @@ with tab1:
 
                 with col4:
                     if rec.get('status') in ['ABERTO', 'VENCIDO']:
-                        if st.button("✅ Pagar", key=f"pagar_rec_{rec['id']}"):
-                            antes = {'status': rec.get('status')}
-                            success, msg = update_recebimento_status(rec['id'], 'PAGO', recebido_em=date.today())
-                            if success:
-                                audit_update('recebimentos', rec['id'], antes, {'status': 'PAGO'})
-                                st.success(msg)
+                        btn_col1, btn_col2, btn_col3 = st.columns(3)
+                        with btn_col1:
+                            if st.button("✅", key=f"pagar_rec_{rec['id']}"):
+                                antes = {'status': rec.get('status')}
+                                success, msg = update_recebimento_status(rec['id'], 'PAGO', recebido_em=date.today())
+                                if success:
+                                    audit_update('recebimentos', rec['id'], antes, {'status': 'PAGO'})
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                        with btn_col2:
+                            if st.button("✏️", key=f"edit_rec_{rec['id']}"):
+                                st.session_state['receb_edit_id'] = rec['id']
                                 st.rerun()
-                            else:
-                                st.error(msg)
-                        
-                        if st.button("🚫 Cancelar", key=f"cancel_rec_{rec['id']}"):
-                            antes = {'status': rec.get('status')}
-                            success, msg = update_recebimento_status(rec['id'], 'CANCELADO')
-                            if success:
-                                audit_update('recebimentos', rec['id'], antes, {'status': 'CANCELADO'})
-                                st.success(msg)
+                        with btn_col3:
+                            if st.button("🗑️", key=f"cancel_rec_{rec['id']}"):
+                                antes = {'status': rec.get('status')}
+                                success, msg = update_recebimento_status(rec['id'], 'CANCELADO')
+                                if success:
+                                    audit_update('recebimentos', rec['id'], antes, {'status': 'CANCELADO'})
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                    else:
+                        btn_col1, btn_col2, btn_col3 = st.columns(3)
+                        with btn_col1:
+                            st.markdown("✅" if rec.get('status') == 'PAGO' else "⚪")
+                        with btn_col2:
+                            if st.button("✏️", key=f"edit_rec_{rec['id']}"):
+                                st.session_state['receb_edit_id'] = rec['id']
                                 st.rerun()
-                            else:
-                                st.error(msg)
+                        with btn_col3:
+                            if st.button("🗑️", key=f"del_rec_{rec['id']}"):
+                                success, msg = delete_recebimento(rec['id'])
+                                if success:
+                                    audit_delete('recebimentos', rec)
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+
+                if st.session_state.get('receb_edit_id') == rec['id']:
+                    with st.form(f"form_edit_rec_{rec['id']}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            valor_edit = st.number_input(
+                                "Valor (R$)",
+                                min_value=0.0,
+                                value=float(rec.get('valor', 0) or 0),
+                                step=50.0
+                            )
+                        with col2:
+                            vencimento_edit = st.date_input(
+                                "Vencimento",
+                                value=date.fromisoformat(rec.get('vencimento'))
+                                if rec.get('vencimento') else date.today()
+                            )
+                        status_edit = st.selectbox(
+                            "Status",
+                            options=['ABERTO', 'VENCIDO', 'PAGO', 'CANCELADO'],
+                            index=['ABERTO', 'VENCIDO', 'PAGO', 'CANCELADO'].index(rec.get('status', 'ABERTO'))
+                        )
+                        recebido_em_edit = None
+                        if status_edit == 'PAGO':
+                            recebido_em_edit = st.date_input(
+                                "Recebido em",
+                                value=date.fromisoformat(rec.get('recebido_em'))
+                                if rec.get('recebido_em') else date.today()
+                            )
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 Salvar", type="primary"):
+                                antes = {
+                                    'valor': rec.get('valor'),
+                                    'vencimento': rec.get('vencimento'),
+                                    'status': rec.get('status'),
+                                    'recebido_em': rec.get('recebido_em')
+                                }
+                                novos_dados = {
+                                    'valor': valor_edit,
+                                    'vencimento': vencimento_edit.isoformat(),
+                                    'status': status_edit
+                                }
+                                if status_edit == 'PAGO':
+                                    novos_dados['recebido_em'] = recebido_em_edit.isoformat()
+                                success, msg = update_recebimento(rec['id'], novos_dados)
+                                if success:
+                                    audit_update('recebimentos', rec['id'], antes, novos_dados)
+                                    st.session_state['receb_edit_id'] = None
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                        with col2:
+                            if st.form_submit_button("❌ Cancelar"):
+                                st.session_state['receb_edit_id'] = None
+                                st.rerun()
                 
                 st.markdown("---")
     
@@ -118,6 +223,26 @@ with tab1:
             obra_fase_id = None
             valor = 0.0
             vencimento = date.today()
+            desconto_orcamento = 0.0
+
+            def atualizar_valor_fase(force: bool = False) -> None:
+                fase_id = st.session_state.get("rec_fase")
+                if not fase_id:
+                    return
+                if not force and st.session_state.get('rec_valor_fase_id') == fase_id:
+                    return
+                fase_info = next((f for f in fases if f['id'] == fase_id), None)
+                if not fase_info:
+                    return
+                valor_fase = float(fase_info.get('valor_fase', 0) or 0)
+                desconto_fase = float(
+                    st.session_state.get('rec_desconto_rateio', {})
+                    .get(orc_id, {})
+                    .get(fase_id, 0)
+                    or 0
+                )
+                st.session_state['rec_valor'] = max(0.0, valor_fase - desconto_fase)
+                st.session_state['rec_valor_fase_id'] = fase_id
             
             if orcamentos:
                 orc_id = st.selectbox(
@@ -126,20 +251,65 @@ with tab1:
                     format_func=lambda x: f"v{next((o['versao'] for o in orcamentos if o['id'] == x), '-')}",
                     key="rec_orc"
                 )
-                
+
                 fases = get_fases_por_orcamento(orc_id)
+                desconto_orcamento = float(
+                    next((o.get('desconto_valor', 0) for o in orcamentos if o['id'] == orc_id), 0) or 0
+                )
                 
                 if fases:
                     obra_fase_id = st.selectbox(
                         "📑 Fase",
                         options=[f['id'] for f in fases],
                         format_func=lambda x: next((f['nome_fase'] for f in fases if f['id'] == x), '-'),
-                        key="rec_fase"
+                        key="rec_fase",
+                        on_change=atualizar_valor_fase
                     )
-                    
+
+                    atualizar_valor_fase()
+
+                    if desconto_orcamento > 0:
+                        st.info(f"Desconto do orçamento: R$ {desconto_orcamento:,.2f}")
+                        aplicar_rateio = st.form_submit_button(
+                            "💸 Aplicar desconto proporcional às fases restantes",
+                            help="Divide o desconto igualmente entre as fases que ainda não têm recebimento."
+                        )
+                        if aplicar_rateio:
+                            recebimentos_existentes = get_recebimentos_por_orcamento(orc_id)
+                            fases_com_recebimento = {
+                                rec.get('obra_fase_id') for rec in recebimentos_existentes if rec.get('obra_fase_id')
+                            }
+                            fases_restantes = [f for f in fases if f['id'] not in fases_com_recebimento]
+                            if not fases_restantes:
+                                st.warning("Todas as fases já possuem recebimento gerado.")
+                            else:
+                                fases_ordenadas = sorted(fases_restantes, key=lambda f: f.get('ordem', 0))
+                                rateio = {}
+                                desconto_total = float(desconto_orcamento)
+                                desconto_base = round(desconto_total / len(fases_ordenadas), 2)
+                                acumulado = 0.0
+                                for idx, fase in enumerate(fases_ordenadas):
+                                    if idx == len(fases_ordenadas) - 1:
+                                        desconto_fase = round(desconto_total - acumulado, 2)
+                                    else:
+                                        desconto_fase = desconto_base
+                                        acumulado += desconto_fase
+                                    rateio[fase['id']] = max(0.0, desconto_fase)
+                                st.session_state['rec_desconto_rateio'][orc_id] = rateio
+                                atualizar_valor_fase(force=True)
+                                st.success("Desconto proporcional aplicado às fases restantes.")
+
                     col1, col2 = st.columns(2)
                     
                     with col1:
+                        desconto_aplicado = float(
+                            st.session_state.get('rec_desconto_rateio', {})
+                            .get(orc_id, {})
+                            .get(obra_fase_id, 0)
+                            or 0
+                        )
+                        if desconto_aplicado > 0:
+                            st.caption(f"Desconto proporcional aplicado: R$ {desconto_aplicado:,.2f}")
                         valor = st.number_input("💵 Valor (R$)", min_value=0.0, step=100.0, key="rec_valor")
                     
                     with col2:
@@ -165,6 +335,10 @@ with tab1:
                 success, msg, novo = create_recebimento(dados)
 
                 if success:
+                    if orc_id in st.session_state.get('rec_desconto_rateio', {}):
+                        st.session_state['rec_desconto_rateio'][orc_id].pop(obra_fase_id, None)
+                        if not st.session_state['rec_desconto_rateio'][orc_id]:
+                            st.session_state['rec_desconto_rateio'].pop(orc_id, None)
                     audit_insert('recebimentos', novo)
                     st.success(msg)
                     st.rerun()
@@ -180,14 +354,29 @@ with tab1:
 with tab2:
     st.markdown("### 📤 Pagamentos")
 
-    status_filter_pag = st.selectbox(
-        "Filtrar por Status",
-        options=['', 'PENDENTE', 'PAGO', 'CANCELADO'],
-        format_func=lambda x: 'Todos' if x == '' else x,
-        key="filter_pag"
-    )
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        busca_pag = st.text_input(
+            "🔍 Buscar",
+            placeholder="Tipo ou observação...",
+            key="busca_pag"
+        )
+    with col2:
+        status_filter_pag = st.selectbox(
+            "Situação",
+            options=[None, 'PENDENTE', 'PAGO', 'CANCELADO'],
+            format_func=lambda x: 'Todos' if x is None else x,
+            key="filter_pag"
+        )
 
-    pagamentos = get_pagamentos(status=status_filter_pag if status_filter_pag else None)
+    pagamentos = get_pagamentos(status=status_filter_pag)
+    if busca_pag:
+        busca_lower = busca_pag.lower()
+        pagamentos = [
+            pag for pag in pagamentos
+            if busca_lower in (pag.get('tipo', '') or '').lower()
+            or busca_lower in (pag.get('observacao', '') or '').lower()
+        ]
     
     if not pagamentos:
         st.info("📋 Nenhum pagamento encontrado.")
@@ -206,7 +395,7 @@ with tab2:
             }.get(pag.get('tipo', ''), '💵')
             
             with st.container():
-                col1, col2, col3 = st.columns([2, 2, 1])
+                col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
                 
                 with col1:
                     st.markdown(f"""
@@ -221,8 +410,108 @@ with tab2:
                 
                 with col3:
                     st.markdown(f"{status_emoji} **{pag.get('status', '-')}**")
+                with col4:
+                    btn_col1, btn_col2, btn_col3 = st.columns(3)
+                    with btn_col1:
+                        if pag.get('status') == 'PENDENTE':
+                            if st.button("✅", key=f"pago_{pag['id']}"):
+                                antes = {'status': pag.get('status')}
+                                success, msg = update_pagamento_status(pag['id'], 'PAGO', pago_em=date.today())
+                                if success:
+                                    audit_update('pagamentos', pag['id'], antes, {'status': 'PAGO'})
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                        else:
+                            st.markdown("✅" if pag.get('status') == 'PAGO' else "⚪")
+                    with btn_col2:
+                        if st.button("✏️", key=f"edit_pag_{pag['id']}"):
+                            st.session_state['pag_edit_id'] = pag['id']
+                            st.rerun()
+                    with btn_col3:
+                        if pag.get('status') == 'PENDENTE':
+                            if st.button("🗑️", key=f"cancel_pag_{pag['id']}"):
+                                antes = {'status': pag.get('status')}
+                                success, msg = update_pagamento_status(pag['id'], 'CANCELADO')
+                                if success:
+                                    audit_update('pagamentos', pag['id'], antes, {'status': 'CANCELADO'})
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                        else:
+                            if st.button("🗑️", key=f"del_pag_{pag['id']}"):
+                                success, msg = delete_pagamento(pag['id'])
+                                if success:
+                                    audit_delete('pagamentos', pag)
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
                 
                 st.markdown("---")
+                
+                if st.session_state.get('pag_edit_id') == pag['id']:
+                    with st.form(f"form_edit_pag_{pag['id']}"):
+                        tipo_edit = st.selectbox(
+                            "Tipo",
+                            options=['SEMANAL', 'EXTRA', 'POR_FASE'],
+                            index=['SEMANAL', 'EXTRA', 'POR_FASE'].index(pag.get('tipo', 'SEMANAL'))
+                        )
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            ref_ini_edit = st.date_input(
+                                "Referência Início",
+                                value=date.fromisoformat(pag.get('referencia_inicio'))
+                                if pag.get('referencia_inicio') else date.today()
+                            )
+                        with col2:
+                            ref_fim_edit = st.date_input(
+                                "Referência Fim",
+                                value=date.fromisoformat(pag.get('referencia_fim'))
+                                if pag.get('referencia_fim') else date.today()
+                            )
+                        status_edit = st.selectbox(
+                            "Status",
+                            options=['PENDENTE', 'PAGO', 'CANCELADO'],
+                            index=['PENDENTE', 'PAGO', 'CANCELADO'].index(pag.get('status', 'PENDENTE'))
+                        )
+                        observacao_edit = st.text_input(
+                            "Observação",
+                            value=pag.get('observacao', '') or ''
+                        )
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 Salvar", type="primary"):
+                                antes = {
+                                    'tipo': pag.get('tipo'),
+                                    'referencia_inicio': pag.get('referencia_inicio'),
+                                    'referencia_fim': pag.get('referencia_fim'),
+                                    'status': pag.get('status'),
+                                    'observacao': pag.get('observacao')
+                                }
+                                novos_dados = {
+                                    'tipo': tipo_edit,
+                                    'referencia_inicio': ref_ini_edit.isoformat(),
+                                    'referencia_fim': ref_fim_edit.isoformat(),
+                                    'status': status_edit,
+                                    'observacao': observacao_edit
+                                }
+                                if status_edit == 'PAGO' and not pag.get('pago_em'):
+                                    novos_dados['pago_em'] = date.today().isoformat()
+                                success, msg = update_pagamento(pag['id'], novos_dados)
+                                if success:
+                                    audit_update('pagamentos', pag['id'], antes, novos_dados)
+                                    st.session_state['pag_edit_id'] = None
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                        with col2:
+                            if st.form_submit_button("❌ Cancelar"):
+                                st.session_state['pag_edit_id'] = None
+                                st.rerun()
                 
                 with st.expander("Detalhes e Itens"):
                     itens = get_pagamento_itens(pag['id'])
@@ -239,7 +528,7 @@ with tab2:
                             📅 {apt.get('data', '-')} | 💵 R$ {item.get('valor', 0):,.2f}
                             """)
                             
-                            if st.button("🗑️ Remover Item", key=f"del_item_{item['id']}"):
+                            if st.button("🗑️", key=f"del_item_{item['id']}"):
                                 success, msg = delete_pagamento_item(item['id'])
                                 if success:
                                     audit_delete('pagamento_itens', item)
@@ -319,7 +608,7 @@ with tab2:
                         st.markdown("---")
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("✅ Marcar como Pago", key=f"pago_{pag['id']}"):
+                            if st.button("✅", key=f"pago_exp_{pag['id']}"):
                                 antes = {'status': pag.get('status')}
                                 success, msg = update_pagamento_status(pag['id'], 'PAGO', pago_em=date.today())
                                 if success:
@@ -329,7 +618,7 @@ with tab2:
                                 else:
                                     st.error(msg)
                         with col2:
-                            if st.button("🚫 Cancelar", key=f"cancel_pag_{pag['id']}"):
+                            if st.button("🗑️", key=f"cancel_pag_exp_{pag['id']}"):
                                 antes = {'status': pag.get('status')}
                                 success, msg = update_pagamento_status(pag['id'], 'CANCELADO')
                                 if success:
