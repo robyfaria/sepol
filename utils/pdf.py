@@ -37,6 +37,35 @@ class OrcamentoPDF(FPDF):
         self.cell(0, 10, f'Página {self.page_no()}/{{nb}}', align='C')
 
 
+class FinanceiroPDF(FPDF):
+    """Classe customizada para gerar PDF de extrato financeiro"""
+
+    def __init__(self, titulo: str, subtitulo: str):
+        super().__init__()
+        self.titulo = titulo
+        self.subtitulo = subtitulo
+        self.set_auto_page_break(auto=True, margin=15)
+        self.logo_path = LOGO_PATH if LOGO_PATH.exists() else None
+
+    def header(self):
+        if self.logo_path:
+            self.image(str(self.logo_path), x=10, y=8, w=18)
+            self.set_y(10)
+        self.set_font('Helvetica', 'B', 16)
+        self.set_text_color(26, 82, 118)
+        self.cell(0, 8, self.titulo, ln=True, align='C')
+        self.set_font('Helvetica', '', 11)
+        self.set_text_color(80, 80, 80)
+        self.cell(0, 6, self.subtitulo, ln=True, align='C')
+        self.ln(4)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Helvetica', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f'Página {self.page_no()}/{{nb}}', align='C')
+
+
 def formatar_moeda(valor: float) -> str:
     """Formata valor para moeda brasileira"""
     if valor is None:
@@ -72,6 +101,18 @@ def quebrar_texto_em_linhas(pdf: FPDF, texto: str, largura_max: float) -> list[s
         linhas.append(linha_atual)
 
     return linhas
+
+
+def _formatar_data(valor: Optional[object]) -> str:
+    """Formata datas para o PDF."""
+    if not valor:
+        return "-"
+    if isinstance(valor, datetime):
+        return valor.strftime('%d/%m/%Y')
+    try:
+        return datetime.fromisoformat(str(valor)).strftime('%d/%m/%Y')
+    except ValueError:
+        return str(valor)
 
 
 def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -> bytes:
@@ -246,6 +287,81 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
     )
     
     # Retorna os bytes do PDF
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1")
+    elif isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
+    return pdf_bytes
+
+
+def gerar_pdf_extrato_financeiro(mes: int, ano: int, recebimentos: list, pagamentos: list, resumo: dict) -> bytes:
+    """
+    Gera o PDF do extrato financeiro mensal.
+
+    Args:
+        mes: Mês de referência.
+        ano: Ano de referência.
+        recebimentos: Lista de recebimentos filtrados.
+        pagamentos: Lista de pagamentos filtrados.
+        resumo: Totais consolidados.
+
+    Returns:
+        bytes: Conteúdo do PDF.
+    """
+    titulo = "EXTRATO FINANCEIRO MENSAL"
+    subtitulo = f"Referência {mes:02d}/{ano}"
+    pdf = FinanceiroPDF(titulo, subtitulo)
+    pdf.alias_nb_pages()
+    pdf.add_page()
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font('Helvetica', 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 8, 'RESUMO CONSOLIDADO', ln=True, fill=True)
+
+    pdf.set_font('Helvetica', '', 11)
+    pdf.cell(50, 7, 'Recebimentos:', ln=False)
+    pdf.cell(0, 7, formatar_moeda(resumo.get('total_recebimentos', 0)), ln=True)
+    pdf.cell(50, 7, 'Pagamentos:', ln=False)
+    pdf.cell(0, 7, formatar_moeda(resumo.get('total_pagamentos', 0)), ln=True)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.cell(50, 7, 'Saldo:', ln=False)
+    pdf.cell(0, 7, formatar_moeda(resumo.get('saldo', 0)), ln=True)
+    pdf.ln(4)
+
+    def render_lancamentos(titulo_secao: str, itens: list, tipo: str) -> None:
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.set_fill_color(200, 220, 240)
+        pdf.cell(0, 8, titulo_secao, ln=True, fill=True)
+
+        if not itens:
+            pdf.set_font('Helvetica', 'I', 10)
+            pdf.cell(0, 6, f"Nenhum {tipo} encontrado no período.", ln=True)
+            pdf.ln(2)
+            return
+
+        pdf.set_font('Helvetica', 'B', 10)
+        col_data = 25
+        col_desc = 125
+        col_valor = 40
+        pdf.cell(col_data, 7, 'Data', border=1)
+        pdf.cell(col_desc, 7, 'Descrição', border=1)
+        pdf.cell(col_valor, 7, 'Valor', border=1, ln=True, align='R')
+
+        pdf.set_font('Helvetica', '', 9)
+        for item in itens:
+            data_ref = _formatar_data(item.get('data_ref'))
+            descricao = item.get('descricao', '-')
+            valor = formatar_moeda(item.get('valor', 0))
+            pdf.cell(col_data, 6, data_ref, border=1)
+            pdf.cell(col_desc, 6, descricao[:60], border=1)
+            pdf.cell(col_valor, 6, valor, border=1, ln=True, align='R')
+        pdf.ln(4)
+
+    render_lancamentos("RECEBIMENTOS", recebimentos, "recebimento")
+    render_lancamentos("PAGAMENTOS", pagamentos, "pagamento")
+
     pdf_bytes = pdf.output(dest="S")
     if isinstance(pdf_bytes, str):
         pdf_bytes = pdf_bytes.encode("latin-1")

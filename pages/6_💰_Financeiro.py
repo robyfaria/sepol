@@ -2,6 +2,7 @@
 Página Financeiro - Recebimentos e Pagamentos (ADMIN only)
 """
 
+import calendar
 import streamlit as st
 from datetime import date
 from utils.auth import require_admin
@@ -16,6 +17,7 @@ from utils.db import (
 )
 from utils.auditoria import audit_insert, audit_update, audit_delete
 from utils.layout import render_sidebar, render_top_logo
+from utils.pdf import gerar_pdf_extrato_financeiro
 
 # Requer ADMIN
 profile = require_admin()
@@ -39,7 +41,7 @@ if 'rec_desconto_rateio' not in st.session_state:
 if 'rec_valor_fase_id' not in st.session_state:
     st.session_state['rec_valor_fase_id'] = None
 
-tab1, tab2 = st.tabs(["📥 Recebimentos", "📤 Pagamentos"])
+tab1, tab2, tab3 = st.tabs(["📥 Recebimentos", "📤 Pagamentos", "📄 Relatório"])
 
 # ============================================
 # RECEBIMENTOS
@@ -749,3 +751,105 @@ with tab2:
                 st.rerun()
             else:
                 st.error(msg)
+
+# ============================================
+# RELATÓRIO
+# ============================================
+
+with tab3:
+    st.markdown("### 📄 Relatório Financeiro Mensal")
+
+    ref_date = st.date_input(
+        "Mês de referência",
+        value=date.today(),
+        key="financeiro_relatorio_mes"
+    )
+    mes = ref_date.month
+    ano = ref_date.year
+    ultimo_dia = calendar.monthrange(ano, mes)[1]
+    data_inicio = date(ano, mes, 1)
+    data_fim = date(ano, mes, ultimo_dia)
+
+    recebimentos_base = get_recebimentos()
+    pagamentos_base = get_pagamentos()
+
+    def data_no_mes(data_value: object) -> bool:
+        if not data_value:
+            return False
+        try:
+            data_ref = date.fromisoformat(str(data_value))
+        except ValueError:
+            return False
+        return data_inicio <= data_ref <= data_fim
+
+    recebimentos_relatorio = []
+    for rec in recebimentos_base:
+        data_ref = rec.get('recebido_em') or rec.get('vencimento')
+        if rec.get('status') != 'PAGO' or not data_no_mes(data_ref):
+            continue
+        fase_info = rec.get('obra_fases', {}) or {}
+        obra_info = fase_info.get('obras', {}) or {}
+        descricao = f"{obra_info.get('titulo', '-')} - {fase_info.get('nome_fase', '-')}"
+        recebimentos_relatorio.append({
+            'data_ref': data_ref,
+            'descricao': descricao,
+            'valor': float(rec.get('valor', 0) or 0)
+        })
+
+    pagamentos_relatorio = []
+    for pag in pagamentos_base:
+        data_ref = pag.get('pago_em') or pag.get('referencia_fim') or pag.get('referencia_inicio')
+        if pag.get('status') != 'PAGO' or not data_no_mes(data_ref):
+            continue
+        descricao = f"{pag.get('tipo', '-')}"
+        if pag.get('referencia_inicio') or pag.get('referencia_fim'):
+            descricao = (
+                f"{descricao} ({pag.get('referencia_inicio', '-')}"
+                f" a {pag.get('referencia_fim', '-')})"
+            )
+        pagamentos_relatorio.append({
+            'data_ref': data_ref,
+            'descricao': descricao,
+            'valor': float(pag.get('valor_total', 0) or 0)
+        })
+
+    total_recebimentos = sum(item['valor'] for item in recebimentos_relatorio)
+    total_pagamentos = sum(item['valor'] for item in pagamentos_relatorio)
+    saldo = total_recebimentos - total_pagamentos
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Recebimentos", f"R$ {total_recebimentos:,.2f}")
+    with col2:
+        st.metric("Pagamentos", f"R$ {total_pagamentos:,.2f}")
+    with col3:
+        st.metric("Saldo", f"R$ {saldo:,.2f}")
+
+    pdf_state_key = f"financeiro_pdf_{mes}_{ano}"
+    if st.button("📄 Gerar PDF do Extrato", type="primary"):
+        with st.spinner("Gerando PDF do relatório..."):
+            pdf_bytes = gerar_pdf_extrato_financeiro(
+                mes,
+                ano,
+                recebimentos_relatorio,
+                pagamentos_relatorio,
+                {
+                    'total_recebimentos': total_recebimentos,
+                    'total_pagamentos': total_pagamentos,
+                    'saldo': saldo
+                }
+            )
+            st.session_state[pdf_state_key] = {
+                "bytes": pdf_bytes,
+                "filename": f"extrato_financeiro_{mes:02d}_{ano}.pdf",
+            }
+            st.success("PDF gerado! Baixe abaixo.")
+
+    pdf_payload = st.session_state.get(pdf_state_key)
+    if pdf_payload:
+        st.download_button(
+            "⬇️ Baixar PDF do Extrato",
+            data=pdf_payload["bytes"],
+            file_name=pdf_payload["filename"],
+            mime="application/pdf",
+        )

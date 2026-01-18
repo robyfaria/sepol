@@ -174,7 +174,7 @@ create table public.obra_fases (
   nome_fase varchar(100) not null,
   ordem int not null default 1 check (ordem >= 1),
   status varchar(20) not null default 'PENDENTE'
-    check (status in ('PENDENTE','EM_ANDAMENTO','CONCLUIDA')),
+    check (status in ('PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADO')),
   valor_fase numeric(12,2) not null default 0,
   criado_em timestamptz not null default now(),
   constraint obra_fases_uniq unique (orcamento_id, ordem)
