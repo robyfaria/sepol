@@ -425,6 +425,12 @@ def update_orcamento_status(orcamento_id: int, novo_status: str, campos_extra: d
             .update(dados) \
             .eq('id', orcamento_id) \
             .execute()
+
+        if novo_status == 'CANCELADO':
+            supabase.table('obra_fases') \
+                .update({'status': 'CANCELADO'}) \
+                .eq('orcamento_id', orcamento_id) \
+                .execute()
         
         return True, f"Orçamento {novo_status.lower()} com sucesso!"
         
@@ -1235,7 +1241,8 @@ def update_usuario_app(usuario_id: int, dados: dict) -> tuple[bool, str]:
 # ============================================
 
 def get_auditoria(entidade: Optional[str] = None, data_inicio: Optional[date] = None,
-                  data_fim: Optional[date] = None, busca: Optional[str] = None) -> list:
+                  data_fim: Optional[date] = None, busca: Optional[str] = None,
+                  busca_texto: Optional[str] = None, limite: int = 10) -> list:
     """Lista registros de auditoria"""
     try:
         supabase = get_supabase_client()
@@ -1253,8 +1260,18 @@ def get_auditoria(entidade: Optional[str] = None, data_inicio: Optional[date] = 
         
         if busca:
             query = query.ilike('usuario', f'%{busca}%')
-        
-        response = query.order('criado_em', desc=True).limit(100).execute()
+
+        if busca_texto:
+            filtro = (
+                f"entidade.ilike.%{busca_texto}%,"
+                f"acao.ilike.%{busca_texto}%,"
+                f"usuario.ilike.%{busca_texto}%"
+            )
+            if busca_texto.isdigit():
+                filtro = f"{filtro},entidade_id.eq.{int(busca_texto)}"
+            query = query.or_(filtro)
+
+        response = query.order('criado_em', desc=True).limit(limite).execute()
         return response.data or []
         
     except Exception as e:

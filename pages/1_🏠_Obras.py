@@ -476,7 +476,7 @@ elif st.session_state['obra_view'] == 'detalhe':
                     f"📑 {fase['ordem']}. {fase['nome_fase']} - R$ {fase.get('valor_fase', 0):,.2f}",
                     expanded=False
                 ):
-                    col1, col2, col3 = st.columns([2, 1, 1])
+                    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
                     with col1:
                         st.markdown("**Dados da fase**")
                     with col2:
@@ -491,6 +491,20 @@ elif st.session_state['obra_view'] == 'detalhe':
                                 if success:
                                     audit_delete('obra_fases', fase)
                                     st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                    with col4:
+                        if fase.get('status') != 'CANCELADO' and orcamento['status'] != 'CANCELADO':
+                            if st.button("🚫", key=f"obra_cancel_fase_{fase['id']}"):
+                                antes = {
+                                    'status': fase.get('status')
+                                }
+                                novos_dados = {'status': 'CANCELADO'}
+                                success, msg = update_fase(fase['id'], novos_dados)
+                                if success:
+                                    audit_update('obra_fases', fase['id'], antes, novos_dados)
+                                    st.success("Fase cancelada!")
                                     st.rerun()
                                 else:
                                     st.error(msg)
@@ -509,8 +523,10 @@ elif st.session_state['obra_view'] == 'detalhe':
                                 )
                             status_edit = st.selectbox(
                                 "Status da Fase",
-                                options=['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA'],
-                                index=['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA'].index(fase.get('status', 'PENDENTE'))
+                                options=['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADO'],
+                                index=['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADO'].index(
+                                    fase.get('status', 'PENDENTE')
+                                )
                             )
                             col1, col2 = st.columns(2)
                             with col1:

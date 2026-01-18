@@ -126,19 +126,22 @@ with tab2:
         data_fim = st.date_input("Até", value=date.today())
     
     busca_usuario = st.text_input("🔍 Buscar por usuário")
+    busca_log = st.text_input("🔎 Buscar no log")
     
     # Lista de logs
     logs = get_auditoria(
         entidade=entidade_filter if entidade_filter else None,
         data_inicio=data_inicio,
         data_fim=data_fim,
-        busca=busca_usuario if busca_usuario else None
+        busca=busca_usuario if busca_usuario else None,
+        busca_texto=busca_log if busca_log else None,
+        limite=10
     )
     
     if not logs:
         st.info("📋 Nenhum registro encontrado.")
     else:
-        st.markdown(f"**{len(logs)} registro(s) encontrado(s)** (máx. 100)")
+        st.markdown(f"**{len(logs)} registro(s) encontrado(s)** (máx. 10)")
         
         for log in logs:
             acao_emoji = {
