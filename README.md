@@ -54,7 +54,7 @@ SUPABASE_ANON_KEY=sua-anon-key-aqui
 ### 6. Execute o app
 
 ```bash
-streamlit run app.py
+streamlit run Inicio.py
 ```
 
 O app abrirá em `http://localhost:8501`.
@@ -70,18 +70,22 @@ Para deploy no Streamlit Cloud, adicione as mesmas chaves em **Settings > Secret
 
 ## Arquitetura
 
-- **UI**: Streamlit multipage (`app.py` + `pages/`).
+- **UI**: Streamlit multipage (`Inicio.py` + `pages/`).
 - **Autenticação**: Supabase Auth com verificação de perfil em `public.usuarios_app`.
 - **Dados**: Camada de acesso em `utils/db.py` consumindo PostgREST do Supabase.
 - **Auditoria**: Triggers em Postgres gravando histórico em tabela de auditoria.
 - **PDF**: Geração local via `fpdf2` com download direto na UI.
+- **Orçamentos**: Gestão centralizada dentro de Obras (fases, valores e aprovações).
+- **Financeiro**: Recebimentos/Pagamentos com rateio de desconto por fase.
 
 ## Fluxo de dados
 
 1. **Login** → App chama Supabase Auth e grava sessão local.
-2. **Carregamento de telas** → `utils/db.py` consulta tabelas e views.
-3. **Escrita** → App envia inserts/updates → triggers recalculam totais e registram auditoria.
-4. **Orçamentos (PDF)** → `utils/pdf.py` gera o arquivo → download direto na UI.
+2. **Navegação** → `Inicio.py` carrega páginas via `pages/` e monta sidebar com permissões.
+3. **Gestão de Obras** → Obras concentra cadastro, orçamento, fases e alocações.
+4. **Financeiro** → Recebimentos e pagamentos vinculados a fases/orçamentos aprovados.
+5. **Escrita** → App envia inserts/updates → triggers recalculam totais e registram auditoria.
+6. **Orçamentos (PDF)** → `utils/pdf.py` gera o arquivo → download direto na UI.
 
 ## Decisões técnicas
 
@@ -94,10 +98,12 @@ Para deploy no Streamlit Cloud, adicione as mesmas chaves em **Settings > Secret
 
 ```mermaid
 flowchart LR
-    UI[Streamlit UI] -->|Auth| Auth[Supabase Auth]
+    UI[Streamlit UI<br/>Inicio.py + pages/] -->|Auth| Auth[Supabase Auth]
     UI -->|CRUD| DB[(Postgres)]
+    UI -->|Financeiro| FIN[Recebimentos/Pagamentos]
+    UI -->|Obras/Orçamentos| OBR[Obras + Fases]
     DB -->|Triggers de cálculo/auditoria| TRG[Triggers]
-    UI -->|Gera PDF| PDF[fpdf2]
+    OBR -->|PDF| PDF[fpdf2]
     PDF -->|Download| UI
 ```
 
@@ -105,12 +111,11 @@ flowchart LR
 
 ```
 repo(sepol)/
-├── app.py                 # Página principal e login
+├── Inicio.py              # Página principal e login
 ├── pages/
 │   ├── 1_🏠_Obras.py
 │   ├── 2_👥_Clientes.py
 │   ├── 3_👷_Pessoas.py
-│   ├── 4_📋_Orcamentos.py
 │   ├── 5_📅_Agenda.py
 │   ├── 6_💰_Financeiro.py
 │   └── 7_⚙️_Configuracoes.py

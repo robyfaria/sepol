@@ -1130,6 +1130,10 @@ elif st.session_state['obra_view'] == 'detalhe':
         if not pessoas:
             st.warning("⚠️ Cadastre profissionais primeiro.")
         else:
+            if st.session_state.get("obra_nova_orcamento_id_prev") != st.session_state.get("obra_nova_orcamento_id"):
+                st.session_state["obra_nova_fase_id"] = None
+                st.session_state["obra_nova_orcamento_id_prev"] = st.session_state.get("obra_nova_orcamento_id")
+
             with st.form("form_nova_alocacao_obra"):
                 col1, col2 = st.columns(2)
 
@@ -1169,8 +1173,7 @@ elif st.session_state['obra_view'] == 'detalhe':
                             0
                         ),
                         format_func=lambda x: next((o['label'] for o in orc_options if o['id'] == x), '-'),
-                        key="obra_nova_orcamento_id",
-                        on_change=lambda: st.session_state.update({'obra_nova_fase_id': None})
+                        key="obra_nova_orcamento_id"
                     )
 
                 with col2:

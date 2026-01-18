@@ -214,6 +214,10 @@ with tab1:
     obras = get_obras(ativo=True)
     
     if obras:
+        if st.session_state.get("rec_orc_prev") != st.session_state.get("rec_orc"):
+            st.session_state["rec_fase"] = None
+            st.session_state["rec_orc_prev"] = st.session_state.get("rec_orc")
+
         with st.form("form_novo_recebimento"):
             obra_id = st.selectbox(
                 "🏗️ Obra",
@@ -268,8 +272,7 @@ with tab1:
                         "📑 Fase",
                         options=[f['id'] for f in fases],
                         format_func=lambda x: next((f['nome_fase'] for f in fases if f['id'] == x), '-'),
-                        key="rec_fase",
-                        on_change=atualizar_valor_fase
+                        key="rec_fase"
                     )
 
                     atualizar_valor_fase()
