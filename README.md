@@ -1,117 +1,181 @@
-# Gestão de Obras de Pintura - Streamlit App
+# SEPOL — Gestão de Obras de Pintura (Streamlit + Supabase)
 
-App de gestão de obras de pintura com interface amigável para usuários 60+.
+Sistema web para gestão de obras de pintura com foco em operação diária: clientes, profissionais, obras, orçamentos por versão, agenda/alocação de equipe, financeiro (recebimentos e pagamentos), auditoria e exportação de PDFs.
 
-## Setup completo
+---
 
-### Requisitos
+## 1) Visão geral funcional
 
-- Python 3.11+
-- Conta Supabase com Postgres, Auth e Storage habilitados
+O app é dividido em páginas Streamlit:
 
-### 1. Clone o repositório
+- **Início / Login (`Inicio.py`)**
+  - Autenticação por e-mail/senha via Supabase Auth.
+  - Carregamento de perfil do usuário em `usuarios_app`.
+  - Dashboard rápido com indicadores (obras, orçamentos, pessoas, clientes, recebimentos/pagamentos do mês, fases não concluídas).
+
+- **Obras (`pages/1_🏠_Obras.py`)**
+  - CRUD de obras.
+  - Gestão de orçamentos por obra com versões.
+  - Gestão de fases e serviços por fase.
+  - Definição de tipo de preço do orçamento (`POR_FASE` / `POR_SERVICO`).
+  - Atualização de desconto e validade de orçamento.
+  - Geração de PDF de orçamento para download.
+  - Agenda operacional da obra e apontamentos.
+
+- **Clientes (`pages/2_👥_Clientes.py`)**
+  - CRUD de clientes e ativação/inativação.
+
+- **Pessoas (`pages/3_👷_Pessoas.py`)**
+  - CRUD de profissionais (`PINTOR`, `AJUDANTE`, `TERCEIRO`) e controle de ativo.
+
+- **Agenda (`pages/5_📅_Agenda.py`)**
+  - Visualização de alocações por data/obra e confirmações.
+
+- **Financeiro (`pages/6_💰_Financeiro.py`)** *(somente ADMIN)*
+  - Recebimentos (aberto/vencido/pago/cancelado).
+  - Pagamentos e itens de pagamento vinculados a apontamentos.
+  - Relatório mensal com exportação de PDF.
+
+- **Configurações (`pages/7_⚙️_Configuracoes.py`)** *(somente ADMIN)*
+  - Gestão de usuários do app (`usuarios_app`).
+  - Consulta de logs de auditoria.
+  - Catálogo de serviços.
+
+---
+
+## 2) Stack e arquitetura
+
+- **Frontend**: Streamlit multipage.
+- **Backend de dados/autenticação**: Supabase (Postgres + Auth).
+- **Acesso ao banco**: cliente Supabase via `utils/db.py`.
+- **Regras de negócio no banco**: funções, triggers, policies e índices em SQL.
+- **Auditoria de uso**: tabela `auditoria` + chamadas `utils/auditoria.py`.
+- **PDFs**: geração local em memória com `fpdf2` (`utils/pdf.py`).
+
+Fluxo resumido:
+1. Usuário autentica via Supabase Auth.
+2. App valida perfil em `public.usuarios_app`.
+3. Páginas executam CRUD pela camada `utils/db.py`.
+4. Triggers SQL recalculam campos derivados (totais/rateios etc.).
+5. Logs de operação podem ser gravados na auditoria.
+6. PDFs são gerados em memória e disponibilizados por download.
+
+---
+
+## 3) Pré-requisitos
+
+- Python **3.11+**
+- Projeto Supabase ativo
+- Dependências do `requirements.txt`
+
+Dependências principais:
+- `streamlit`
+- `supabase`
+- `python-dotenv`
+- `fpdf2`
+- `pandas`
+
+---
+
+## 4) Instalação local
 
 ```bash
 git clone <seu-repositorio>
 cd sepol
-```
-
-### 2. Crie um ambiente virtual
-
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-venv\\Scripts\\activate  # Windows
-```
-
-### 3. Instale as dependências
-
-```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Configure o banco (Supabase)
+---
 
-1. Crie um projeto no Supabase.
-2. No SQL Editor, execute os scripts da pasta `sql/` na ordem:
-   - `sql/001_core.sql`
-   - `sql/002_add_scripts.sql`
-   - `sql/003_add_scripts.sql`
-3. Verifique que o bucket `orcamentos` existe (ou crie no Storage).
+## 5) Configuração de ambiente
 
-### 5. Configure as variáveis de ambiente
-
-Crie um arquivo `.env` na raiz do projeto:
+Crie um arquivo `.env` na raiz (ou configure os mesmos valores em `st.secrets`):
 
 ```env
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua-anon-key-aqui
+SUPABASE_URL=https://<seu-projeto>.supabase.co
+SUPABASE_ANON_KEY=<sua-anon-key>
+
+# opcionais (uso específico de storage compatível S3)
+SUPABASE_STORAGE_URL=
+SUPABASE_STORAGE_REGION=
 ```
 
-**IMPORTANTE:** Nunca use a `service_role` key no frontend.
+### Variáveis suportadas
 
-### 6. Execute o app
+| Variável | Obrigatória | Descrição |
+|---|---:|---|
+| `SUPABASE_URL` | Sim | URL do projeto Supabase |
+| `SUPABASE_ANON_KEY` | Sim | Chave pública `anon` |
+| `SUPABASE_STORAGE_URL` | Não | Override do endpoint de storage |
+| `SUPABASE_STORAGE_REGION` | Não | Região para headers S3 |
+
+> **Segurança:** nunca use `service_role` no frontend Streamlit.
+
+---
+
+## 6) Banco de dados (SQL)
+
+A pasta `sql/` contém scripts versionados de estrutura e ajustes.
+
+### Scripts disponíveis
+
+- `sql/001_core.sql` — schema base completo (tabelas, funções, triggers, RLS/policies e grants centrais).
+- `sql/002_add_scripts.sql` — ajustes de alocação/apontamento/rateio.
+- `sql/003_add_scripts.sql` — ajustes adicionais de triggers de apontamento.
+- `sql/004_add_pdf_url.sql` — coluna `orcamentos.pdf_url`.
+- `sql/005_add_orcamento_validade.sql` — colunas `pdf_emitido_em` e `valido_ate`.
+- `sql/006_grant_sequence_permissions.sql` — grants para uso de sequences por `authenticated`.
+- `sql/007_add_orcamento_tipo_preco.sql` — coluna `tipo_preco` (`POR_FASE`/`POR_SERVICO`).
+- `sql/002_add_pagamentos_pessoa.sql` — coluna `pessoa_id` em `pagamentos`.
+- `sql/000_schema_reference.sql` — referência histórica de schema (não executar como migração principal).
+
+### Ordem sugerida para ambiente novo
+
+1. `001_core.sql`
+2. `002_add_scripts.sql`
+3. `003_add_scripts.sql`
+4. `004_add_pdf_url.sql`
+5. `005_add_orcamento_validade.sql`
+6. `006_grant_sequence_permissions.sql`
+7. `007_add_orcamento_tipo_preco.sql`
+8. `002_add_pagamentos_pessoa.sql`
+
+> Execute via SQL Editor do Supabase, validando cada script antes de seguir.
+
+---
+
+## 7) Execução
 
 ```bash
 streamlit run Inicio.py
 ```
 
-O app abrirá em `http://localhost:8501`.
+Aplicação local padrão: `http://localhost:8501`
 
-## Variáveis de ambiente
+---
 
-| Variável | Descrição | Obrigatória |
-| --- | --- | --- |
-| `SUPABASE_URL` | URL do projeto Supabase | Sim |
-| `SUPABASE_ANON_KEY` | Chave pública (anon) do Supabase | Sim |
+## 8) Regras de acesso
 
-Para deploy no Streamlit Cloud, adicione as mesmas chaves em **Settings > Secrets**.
+Perfis esperados em `public.usuarios_app`:
 
-## Arquitetura
+- `ADMIN`
+  - acesso total, incluindo **Financeiro** e **Configurações**.
+- `OPERACAO`
+  - acesso operacional sem rotas administrativas.
 
-- **UI**: Streamlit multipage (`Inicio.py` + `pages/`).
-- **Autenticação**: Supabase Auth com verificação de perfil em `public.usuarios_app`.
-- **Dados**: Camada de acesso em `utils/db.py` consumindo PostgREST do Supabase.
-- **Auditoria**: Triggers em Postgres gravando histórico em tabela de auditoria.
-- **PDF**: Geração local via `fpdf2` com download direto na UI.
-- **Orçamentos**: Gestão centralizada dentro de Obras (fases, valores e aprovações).
-- **Financeiro**: Recebimentos/Pagamentos com rateio de desconto por fase.
+As páginas usam `require_auth()` ou `require_admin()` para proteção.
 
-## Fluxo de dados
+---
 
-1. **Login** → App chama Supabase Auth e grava sessão local.
-2. **Navegação** → `Inicio.py` carrega páginas via `pages/` e monta sidebar com permissões.
-3. **Gestão de Obras** → Obras concentra cadastro, orçamento, fases e alocações.
-4. **Financeiro** → Recebimentos e pagamentos vinculados a fases/orçamentos aprovados.
-5. **Escrita** → App envia inserts/updates → triggers recalculam totais e registram auditoria.
-6. **Orçamentos (PDF)** → `utils/pdf.py` gera o arquivo → download direto na UI.
+## 9) Estrutura do repositório
 
-## Decisões técnicas
-
-- **Streamlit** pela rapidez de entrega e acessibilidade para usuários 60+.
-- **Supabase** para unificar Auth, DB e Storage.
-- **Triggers SQL** para garantir consistência de totais e auditoria no banco.
-- **fpdf2** para geração de PDFs simples sem dependências de browser.
-
-## Diagrama (simplificado)
-
-```mermaid
-flowchart LR
-    UI[Streamlit UI<br/>Inicio.py + pages/] -->|Auth| Auth[Supabase Auth]
-    UI -->|CRUD| DB[(Postgres)]
-    UI -->|Financeiro| FIN[Recebimentos/Pagamentos]
-    UI -->|Obras/Orçamentos| OBR[Obras + Fases]
-    DB -->|Triggers de cálculo/auditoria| TRG[Triggers]
-    OBR -->|PDF| PDF[fpdf2]
-    PDF -->|Download| UI
-```
-
-## Estrutura do Projeto
-
-```
-repo(sepol)/
-├── Inicio.py              # Página principal e login
+```text
+sepol/
+├── Inicio.py
+├── home.py
 ├── pages/
 │   ├── 1_🏠_Obras.py
 │   ├── 2_👥_Clientes.py
@@ -121,27 +185,68 @@ repo(sepol)/
 │   └── 7_⚙️_Configuracoes.py
 ├── utils/
 │   ├── __init__.py
-│   ├── auth.py            # Autenticação Supabase
-│   ├── db.py              # Consultas ao banco
-│   ├── auditoria.py       # Logs de auditoria
-│   ├── layout.py          # Componentes compartilhados
-│   └── pdf.py             # Geração de PDF
+│   ├── auth.py
+│   ├── auditoria.py
+│   ├── db.py
+│   ├── layout.py
+│   └── pdf.py
 ├── sql/
+│   ├── 000_schema_reference.sql
 │   ├── 001_core.sql
+│   ├── 002_add_pagamentos_pessoa.sql
 │   ├── 002_add_scripts.sql
-│   └── 003_add_scripts.sql
+│   ├── 003_add_scripts.sql
+│   ├── 004_add_pdf_url.sql
+│   ├── 005_add_orcamento_validade.sql
+│   ├── 006_grant_sequence_permissions.sql
+│   └── 007_add_orcamento_tipo_preco.sql
 ├── assets/
+│   ├── icon.ico
 │   └── logo.png
 ├── requirements.txt
-├── README.md
-└── .env.example
+├── .env.example
+└── README.md
 ```
 
-## Perfis de Usuário
+---
 
-- **ADMIN**: Acesso total (incluindo Financeiro e Configurações)
-- **OPERACAO**: Acesso operacional (sem Financeiro/Configurações)
+## 10) PDFs gerados pelo sistema
 
-## Suporte
+- **Orçamento** (`pages/1_🏠_Obras.py` + `utils/pdf.py`)
+  - nome do arquivo segue o padrão:
+  - `Orcamento_{numero do orcamento}_{versão do orcamento}_{nome da obra}.pdf`
 
-Para dúvidas ou problemas, abra uma issue no repositório.
+- **Extrato financeiro mensal** (`pages/6_💰_Financeiro.py` + `utils/pdf.py`)
+  - nome do arquivo:
+  - `extrato_financeiro_{MM}_{AAAA}.pdf`
+
+---
+
+## 11) Boas práticas operacionais
+
+- Mantenha scripts SQL versionados (não altere histórico já aplicado em produção sem controle).
+- Cadastre usuários no Supabase Auth e também em `usuarios_app`.
+- Valide permissões de perfil antes de homologar telas administrativas.
+- Não exponha credenciais sensíveis em código/README.
+
+---
+
+## 12) Troubleshooting rápido
+
+- **Mensagem de configuração ausente no login**
+  - conferir `SUPABASE_URL` e `SUPABASE_ANON_KEY` no `.env`/secrets.
+
+- **Usuário autenticou, mas não entra no sistema**
+  - verificar se existe registro ativo em `public.usuarios_app` com `auth_user_id` correspondente.
+
+- **Erro de insert com `bigserial`/sequence**
+  - garantir execução de `sql/006_grant_sequence_permissions.sql`.
+
+- **Campos de orçamento não aparecem como esperado**
+  - confirmar execução de `sql/004`, `sql/005` e `sql/007`.
+
+---
+
+## 13) Licença e suporte
+
+Uso interno do projeto. Para evolução funcional, abra issue/PR com contexto da regra de negócio e impacto no banco.

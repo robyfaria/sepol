@@ -3,6 +3,8 @@ Página de Obras - Listagem, CRUD e detalhes com abas
 """
 
 import streamlit as st
+import re
+import unicodedata
 from datetime import date, datetime, timedelta
 from utils.auth import require_auth
 from utils.layout import render_sidebar, render_top_logo
@@ -55,6 +57,19 @@ if 'obra_nova_fase_id' not in st.session_state:
 def voltar_lista():
     st.session_state['obra_view'] = 'lista'
     st.session_state['obra_id'] = None
+
+
+def _slug_pdf_component(texto: object, fallback: str = "sem_nome") -> str:
+    """Normaliza um trecho de nome de arquivo PDF."""
+    valor = str(texto or "").strip()
+    if not valor:
+        return fallback
+
+    valor = unicodedata.normalize("NFKD", valor)
+    valor = valor.encode("ascii", "ignore").decode("ascii")
+    valor = re.sub(r"[^A-Za-z0-9]+", "_", valor).strip("_")
+
+    return valor or fallback
 
 # ============================================
 # LISTA DE OBRAS
@@ -885,9 +900,16 @@ elif st.session_state['obra_view'] == 'detalhe':
 
                     pdf_bytes = gerar_pdf_orcamento(orcamento_pdf, fases_pdf, servicos_por_fase)
 
+                    numero_orcamento = orc_manage_id
+                    versao_orcamento = orcamento.get('versao', 1)
+                    nome_obra = _slug_pdf_component(
+                        (orcamento.get('obras') or {}).get('titulo'),
+                        fallback=f"obra_{orcamento.get('obra_id', 'sem_id')}"
+                    )
+
                     st.session_state[pdf_state_key] = {
                         "bytes": pdf_bytes,
-                        "filename": f"orcamento_{orc_manage_id}.pdf",
+                        "filename": f"Orcamento_{numero_orcamento}_{versao_orcamento}_{nome_obra}.pdf",
                     }
                     st.success("PDF gerado! Baixe abaixo.")
 
