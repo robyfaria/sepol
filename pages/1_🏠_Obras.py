@@ -885,16 +885,9 @@ elif st.session_state['obra_view'] == 'detalhe':
 
                     pdf_bytes = gerar_pdf_orcamento(orcamento_pdf, fases_pdf, servicos_por_fase)
 
-                    nome_obra = (orcamento.get('obras', {}) or {}).get('titulo', 'obra')
-                    nome_obra_sanitizado = "".join(
-                        c if c.isalnum() or c in [' ', '-', '_'] else "_" for c in str(nome_obra)
-                    ).strip().replace(' ', '_')
-
                     st.session_state[pdf_state_key] = {
                         "bytes": pdf_bytes,
-                        "filename": (
-                            f"Orcamento_{orc_manage_id}_{orcamento.get('versao', 1)}_{nome_obra_sanitizado}.pdf"
-                        ),
+                        "filename": f"orcamento_{orc_manage_id}.pdf",
                     }
                     st.success("PDF gerado! Baixe abaixo.")
 
