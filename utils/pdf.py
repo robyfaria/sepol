@@ -134,6 +134,35 @@ def _formatar_data(valor: Optional[object]) -> str:
         return str(valor)
 
 
+def _desenhar_linha_duas_colunas(
+    pdf: FPDF,
+    texto_esquerda: str,
+    texto_direita: str,
+    largura_esquerda: float,
+    largura_direita: float,
+    altura_linha: float,
+    fonte_esquerda: tuple[str, str, int],
+    fonte_direita: tuple[str, str, int],
+    preenchimento: bool = False,
+) -> None:
+    """Desenha uma linha com duas colunas, texto esquerdo com quebra e direita centralizada na altura."""
+    linhas_esquerda = quebrar_texto_em_linhas(pdf, texto_esquerda, largura_esquerda)
+    altura_total = max(altura_linha, len(linhas_esquerda) * altura_linha)
+    y_inicio = pdf.get_y()
+
+    pdf.set_font(*fonte_esquerda)
+    for idx, linha in enumerate(linhas_esquerda):
+        pdf.set_xy(pdf.l_margin, y_inicio + idx * altura_linha)
+        pdf.cell(largura_esquerda, altura_linha, linha, ln=False, fill=preenchimento)
+
+    pdf.set_font(*fonte_direita)
+    y_direita = y_inicio + (altura_total - altura_linha) / 2
+    pdf.set_xy(pdf.l_margin + largura_esquerda, y_direita)
+    pdf.cell(largura_direita, altura_linha, texto_direita, ln=False, align='R', fill=preenchimento)
+
+    pdf.set_y(y_inicio + altura_total)
+
+
 def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -> bytes:
     """
     Gera o PDF de um orçamento
@@ -206,17 +235,22 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
     pdf.ln(3)
     
     tipo_preco = (orcamento.get('tipo_preco') or 'POR_FASE').upper()
+    col_esquerda = pdf.epw * 0.68
+    col_direita = pdf.epw - col_esquerda
 
     for fase in fases:
-        # Nome da fase
-        pdf.set_font('Helvetica', 'B', 11)
+        # Nome da fase + subtotal da fase na mesma linha
         pdf.set_fill_color(200, 220, 240)
-        pdf.cell(
-            0,
-            8,
-            f"{fase['ordem']}. {normalizar_texto(fase['nome_fase'])}",
-            ln=True,
-            fill=True,
+        _desenhar_linha_duas_colunas(
+            pdf=pdf,
+            texto_esquerda=f"{fase['ordem']}. {normalizar_texto(fase['nome_fase'])}",
+            texto_direita=f"Mão-de-Obra: {formatar_moeda(fase.get('valor_fase', 0))}",
+            largura_esquerda=col_esquerda,
+            largura_direita=col_direita,
+            altura_linha=8,
+            fonte_esquerda=('Helvetica', 'B', 11),
+            fonte_direita=('Helvetica', 'B', 10),
+            preenchimento=True,
         )
 
         # Serviços da fase
@@ -224,40 +258,32 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
         mostrar_subtotal_servico = tipo_preco == 'POR_SERVICO' and len(servicos) >= 2
 
         if servicos:
-            pdf.set_font('Helvetica', '', 9)
             for serv in servicos:
                 servico_info = serv.get('servicos', {})
                 nome = normalizar_texto(servico_info.get('nome'))
-                linhas_servico = quebrar_texto_em_linhas(pdf, f"- {nome}", pdf.epw)
-                for linha in linhas_servico:
-                    pdf.cell(0, 5, linha, ln=True)
 
                 if mostrar_subtotal_servico:
                     subtotal_servico = (serv.get('quantidade', 0) or 0) * (serv.get('valor_unit', 0) or 0)
-                    pdf.set_font('Helvetica', 'B', 9)
-                    pdf.cell(0, 5, f"    Mão-de-obra: {formatar_moeda(subtotal_servico)}", ln=True, align='R')
-                    pdf.set_font('Helvetica', '', 9)
+                    texto_mao_obra = f"Mão-de-Obra: {formatar_moeda(subtotal_servico)}"
+                else:
+                    texto_mao_obra = ""
+
+                _desenhar_linha_duas_colunas(
+                    pdf=pdf,
+                    texto_esquerda=f"- {nome}",
+                    texto_direita=texto_mao_obra,
+                    largura_esquerda=col_esquerda,
+                    largura_direita=col_direita,
+                    altura_linha=5,
+                    fonte_esquerda=('Helvetica', '', 9),
+                    fonte_direita=('Helvetica', 'B', 9),
+                )
         else:
             pdf.set_font('Helvetica', 'I', 9)
             pdf.cell(0, 6, '  Nenhum serviço cadastrado nesta fase', ln=True)
 
-        # Subtotal da fase
-        pdf.set_font('Helvetica', 'B', 10)
-        subtotal_label = "Mão-de-obra:"
-        label_width = pdf.epw * 0.7
-        value_width = pdf.epw - label_width
-        line_height = 6
-        label_lines = quebrar_texto_em_linhas(pdf, subtotal_label, label_width)
-        start_x = pdf.l_margin
-        start_y = pdf.get_y()
-        for idx, line in enumerate(label_lines):
-            pdf.set_xy(start_x, start_y + idx * line_height)
-            pdf.cell(label_width, line_height, line, align='R')
-            if idx == len(label_lines) - 1:
-                pdf.set_xy(start_x + label_width, start_y + idx * line_height)
-                pdf.cell(value_width, line_height, formatar_moeda(fase.get('valor_fase', 0)), align='R')
-        pdf.set_y(start_y + len(label_lines) * line_height + 2)
-    
+        pdf.ln(2)
+
     # Totais
     pdf.ln(5)
     pdf.set_font('Helvetica', 'B', 12)
