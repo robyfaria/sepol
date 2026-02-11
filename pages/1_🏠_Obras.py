@@ -14,7 +14,7 @@ from utils.db import (
     get_orcamento, get_servicos, add_servico_fase, update_servico_fase,
     delete_servico_fase, create_servico, create_fase, delete_fase, update_fase,
     update_servico,
-    update_orcamento_desconto, update_orcamento_validade,
+    update_orcamento_desconto, update_orcamento_validade, update_orcamento_tipo_preco,
     get_recebimentos_por_orcamento, create_recebimento,
     get_alocacoes_dia, create_alocacao, delete_alocacao, update_alocacao_confirmada,
     update_alocacao
@@ -786,9 +786,32 @@ elif st.session_state['obra_view'] == 'detalhe':
                             st.warning("Cadastre serviços no catálogo primeiro.")
 
             st.markdown("---")
-            st.markdown("#### 💸 Desconto e Validade")
+            st.markdown("#### 💸 Tipo de preço, Desconto e Validade")
+
+            tipo_preco_atual = orcamento.get('tipo_preco') or 'POR_FASE'
 
             if orcamento['status'] in ['RASCUNHO', 'EMITIDO']:
+                col_tipo, col_tipo_btn = st.columns([3, 1])
+                with col_tipo:
+                    tipo_preco = st.radio(
+                        "Preço do orçamento",
+                        options=['POR_FASE', 'POR_SERVICO'],
+                        index=0 if tipo_preco_atual == 'POR_FASE' else 1,
+                        format_func=lambda x: 'Preço por fase' if x == 'POR_FASE' else 'Preço por serviço',
+                        horizontal=True,
+                        key='obra_orc_tipo_preco'
+                    )
+                with col_tipo_btn:
+                    st.markdown("")
+                    st.markdown("")
+                    if st.button("💾 Salvar tipo", key="obra_orc_save_tipo_preco"):
+                        success, msg = update_orcamento_tipo_preco(orc_manage_id, tipo_preco)
+                        if success:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
                 col1, col2, col3 = st.columns([2, 1, 2])
 
                 with col1:
@@ -836,7 +859,12 @@ elif st.session_state['obra_view'] == 'detalhe':
                         else:
                             st.error(msg)
             else:
-                st.info(f"Desconto: R$ {orcamento.get('desconto_valor', 0):,.2f} (orçamento não editável)")
+                tipo_preco_label = 'por fase' if tipo_preco_atual == 'POR_FASE' else 'por serviço'
+                st.info(
+                    f"Tipo de preço: {tipo_preco_label} · "
+                    f"Desconto: R$ {orcamento.get('desconto_valor', 0):,.2f} "
+                    "(orçamento não editável)"
+                )
 
             st.markdown("---")
             st.markdown("#### 📄 Gerar PDF")
@@ -857,9 +885,16 @@ elif st.session_state['obra_view'] == 'detalhe':
 
                     pdf_bytes = gerar_pdf_orcamento(orcamento_pdf, fases_pdf, servicos_por_fase)
 
+                    nome_obra = (orcamento.get('obras', {}) or {}).get('titulo', 'obra')
+                    nome_obra_sanitizado = "".join(
+                        c if c.isalnum() or c in [' ', '-', '_'] else "_" for c in str(nome_obra)
+                    ).strip().replace(' ', '_')
+
                     st.session_state[pdf_state_key] = {
                         "bytes": pdf_bytes,
-                        "filename": f"orcamento_{orc_manage_id}.pdf",
+                        "filename": (
+                            f"Orcamento_{orc_manage_id}_{orcamento.get('versao', 1)}_{nome_obra_sanitizado}.pdf"
+                        ),
                     }
                     st.success("PDF gerado! Baixe abaixo.")
 
