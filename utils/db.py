@@ -395,6 +395,7 @@ def create_orcamento(obra_id: int) -> tuple[bool, str, dict]:
             'obra_id': obra_id,
             'versao': nova_versao,
             'status': 'RASCUNHO',
+            'tipo_preco': 'POR_FASE',
             'valor_total': 0,
             'desconto_valor': 0,
             'valor_total_final': 0
@@ -492,6 +493,23 @@ def update_orcamento_validade(orcamento_id: int, valido_ate: date) -> tuple[bool
         return True, "Validade atualizada!"
     except Exception as e:
         return False, f"Erro ao atualizar validade: {e}"
+
+
+def update_orcamento_tipo_preco(orcamento_id: int, tipo_preco: str) -> tuple[bool, str]:
+    """Atualiza o tipo de precificação do orçamento"""
+    try:
+        if tipo_preco not in ['POR_FASE', 'POR_SERVICO']:
+            return False, "Tipo de preço inválido."
+
+        supabase = get_supabase_client()
+        supabase.table('orcamentos') \
+            .update({'tipo_preco': tipo_preco}) \
+            .eq('id', orcamento_id) \
+            .execute()
+        limpar_pdf_orcamento(orcamento_id)
+        return True, "Tipo de preço atualizado!"
+    except Exception as e:
+        return False, f"Erro ao atualizar tipo de preço: {e}"
 
 
 # ============================================
