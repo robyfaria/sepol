@@ -146,6 +146,8 @@ create table public.orcamentos (
   versao int not null default 1,
   status varchar(20) not null default 'RASCUNHO'
     check (status in ('RASCUNHO','EMITIDO','APROVADO','REPROVADO','CANCELADO')),
+  tipo_preco varchar(20) not null default 'POR_FASE'
+    check (tipo_preco in ('POR_FASE','POR_SERVICO')),
   valor_total numeric(12,2) not null default 0,
   desconto_valor numeric(12,2) not null default 0,
   valor_total_final numeric(12,2) not null default 0,

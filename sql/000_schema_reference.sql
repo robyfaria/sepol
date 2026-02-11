@@ -54,6 +54,7 @@ CREATE TABLE public.orcamentos (
     obra_id BIGINT REFERENCES public.obras(id),
     versao INT DEFAULT 1,
     status VARCHAR(20) DEFAULT 'RASCUNHO' CHECK (status IN ('RASCUNHO', 'EMITIDO', 'APROVADO', 'REPROVADO', 'CANCELADO')),
+    tipo_preco VARCHAR(20) DEFAULT 'POR_FASE' CHECK (tipo_preco IN ('POR_FASE', 'POR_SERVICO')),
     valor_total DECIMAL(12,2) DEFAULT 0,
     desconto_valor DECIMAL(12,2) DEFAULT 0,
     valor_total_final DECIMAL(12,2) DEFAULT 0,

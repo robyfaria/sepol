@@ -205,6 +205,8 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
     pdf.cell(0, 8, 'DETALHAMENTO DO ORÇAMENTO', ln=True, fill=True)
     pdf.ln(3)
     
+    tipo_preco = (orcamento.get('tipo_preco') or 'POR_FASE').upper()
+
     for fase in fases:
         # Nome da fase
         pdf.set_font('Helvetica', 'B', 11)
@@ -216,10 +218,11 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
             ln=True,
             fill=True,
         )
-        
+
         # Serviços da fase
         servicos = servicos_por_fase.get(fase['id'], [])
-        
+        mostrar_subtotal_servico = tipo_preco == 'POR_SERVICO' and len(servicos) >= 2
+
         if servicos:
             pdf.set_font('Helvetica', '', 9)
             for serv in servicos:
@@ -228,10 +231,16 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
                 linhas_servico = quebrar_texto_em_linhas(pdf, f"- {nome}", pdf.epw)
                 for linha in linhas_servico:
                     pdf.cell(0, 5, linha, ln=True)
+
+                if mostrar_subtotal_servico:
+                    subtotal_servico = (serv.get('quantidade', 0) or 0) * (serv.get('valor_unit', 0) or 0)
+                    pdf.set_font('Helvetica', 'B', 9)
+                    pdf.cell(0, 5, f"    Subtotal do serviço (mão-de-obra): {formatar_moeda(subtotal_servico)}", ln=True, align='R')
+                    pdf.set_font('Helvetica', '', 9)
         else:
             pdf.set_font('Helvetica', 'I', 9)
             pdf.cell(0, 6, '  Nenhum serviço cadastrado nesta fase', ln=True)
-        
+
         # Subtotal da fase
         pdf.set_font('Helvetica', 'B', 10)
         subtotal_label = "Mão-de-obra:"
