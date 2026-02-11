@@ -235,7 +235,7 @@ def gerar_pdf_orcamento(orcamento: dict, fases: list, servicos_por_fase: dict) -
                 if mostrar_subtotal_servico:
                     subtotal_servico = (serv.get('quantidade', 0) or 0) * (serv.get('valor_unit', 0) or 0)
                     pdf.set_font('Helvetica', 'B', 9)
-                    pdf.cell(0, 5, f"    Subtotal do serviço (mão-de-obra): {formatar_moeda(subtotal_servico)}", ln=True, align='R')
+                    pdf.cell(0, 5, f"    Mão-de-obra: {formatar_moeda(subtotal_servico)}", ln=True, align='R')
                     pdf.set_font('Helvetica', '', 9)
         else:
             pdf.set_font('Helvetica', 'I', 9)
