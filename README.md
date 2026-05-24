@@ -129,6 +129,7 @@ A pasta `sql/` contém scripts versionados de estrutura e ajustes.
 - `sql/005_add_orcamento_validade.sql` — colunas `pdf_emitido_em` e `valido_ate`.
 - `sql/006_grant_sequence_permissions.sql` — grants para uso de sequences por `authenticated`.
 - `sql/007_add_orcamento_tipo_preco.sql` — coluna `tipo_preco` (`POR_FASE`/`POR_SERVICO`).
+- `sql/008_orcamento_desacoplado_obra.sql` — migração incremental para desacoplar orçamentos de obras e inverter o vínculo (obra referencia orçamento aprovado).
 - `sql/002_add_pagamentos_pessoa.sql` — coluna `pessoa_id` em `pagamentos`.
 - `sql/000_schema_reference.sql` — referência histórica de schema (não executar como migração principal).
 
@@ -141,7 +142,8 @@ A pasta `sql/` contém scripts versionados de estrutura e ajustes.
 5. `005_add_orcamento_validade.sql`
 6. `006_grant_sequence_permissions.sql`
 7. `007_add_orcamento_tipo_preco.sql`
-8. `002_add_pagamentos_pessoa.sql`
+8. `008_orcamento_desacoplado_obra.sql`
+9. `002_add_pagamentos_pessoa.sql`
 
 > Execute via SQL Editor do Supabase, validando cada script antes de seguir.
 
