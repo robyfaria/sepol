@@ -512,6 +512,59 @@ def update_orcamento_tipo_preco(orcamento_id: int, tipo_preco: str) -> tuple[boo
         return False, f"Erro ao atualizar tipo de preço: {e}"
 
 
+
+
+def get_orcamentos(busca: str = "", status: Optional[str] = None, cliente_id: Optional[int] = None) -> list:
+    """Lista orçamentos (novo fluxo desacoplado de obra)."""
+    try:
+        supabase = get_supabase_client()
+
+        query = supabase.table('orcamentos').select('*, clientes(id, nome), obras(id, titulo)')
+
+        if status:
+            query = query.eq('status', status)
+        if cliente_id:
+            query = query.eq('cliente_id', cliente_id)
+        if busca:
+            query = query.or_(f"observacao.ilike.%{busca}%,clientes.nome.ilike.%{busca}%")
+
+        response = query.order('criado_em', desc=True).execute()
+        return response.data or []
+    except Exception as e:
+        print(f"Erro ao buscar orçamentos: {e}")
+        return []
+
+
+def create_orcamento_por_cliente(cliente_id: int) -> tuple[bool, str, dict]:
+    """Cria novo orçamento independente, vinculado apenas ao cliente."""
+    try:
+        supabase = get_supabase_client()
+
+        existing = supabase.table('orcamentos') \
+            .select('versao') \
+            .eq('cliente_id', cliente_id) \
+            .order('versao', desc=True) \
+            .limit(1) \
+            .execute()
+
+        nova_versao = 1
+        if existing.data:
+            nova_versao = int(existing.data[0]['versao']) + 1
+
+        response = supabase.table('orcamentos').insert({
+            'cliente_id': cliente_id,
+            'versao': nova_versao,
+            'status': 'RASCUNHO',
+            'tipo_preco': 'POR_FASE',
+            'valor_total': 0,
+            'desconto_valor': 0,
+            'valor_total_final': 0
+        }).execute()
+
+        return True, f"Orçamento v{nova_versao} criado!", response.data[0]
+    except Exception as e:
+        return False, f"Erro ao criar orçamento: {e}", {}
+
 # ============================================
 # FASES DO ORÇAMENTO
 # ============================================
