@@ -14,6 +14,9 @@ from utils.db import (
     get_fases_por_orcamento,
     get_servicos_fase,
     marcar_orcamento_pdf_emitido,
+    create_fase,
+    get_servicos,
+    add_servico_fase,
 )
 from utils.auditoria import audit_insert, audit_update
 from utils.pdf import gerar_pdf_orcamento
@@ -140,5 +143,57 @@ else:
         if st.session_state["orc_pdf_cache"].get(orc["id"]):
             with st.expander(f"👁️ Visualizar PDF do orçamento #{orc['id']}"):
                 st.info("PDF pronto para download no botão 'Baixar PDF'.")
+
+
+        # Edição para orçamento em aberto
+        if orc.get("status") not in ["APROVADO", "CANCELADO"]:
+            with st.expander(f"✏️ Editar orçamento #{orc['id']} (fases e itens)"):
+                fases = get_fases_por_orcamento(orc["id"])
+                st.markdown("**Fases atuais**")
+                if not fases:
+                    st.warning("Este orçamento está sem fases. Adicione a primeira fase abaixo.")
+                for f in fases:
+                    st.markdown(f"• {f.get('ordem', '-')}. {f.get('nome_fase', '-')}")
+                    itens = get_servicos_fase(f["id"])
+                    for it in itens:
+                        nome = (it.get("servicos") or {}).get("nome", "Serviço")
+                        qtd = float(it.get("quantidade", 0) or 0)
+                        vu = float(it.get("valor_unit", 0) or 0)
+                        st.caption(f"   - {nome}: {qtd:g} x R$ {vu:,.2f}")
+
+                st.markdown("---")
+                cfa, cfb = st.columns([3,1])
+                with cfa:
+                    nova_fase_nome = st.text_input("Nova fase", key=f"nova_fase_nome_{orc['id']}")
+                with cfb:
+                    if st.button("Adicionar fase", key=f"add_fase_{orc['id']}"):
+                        fases_exist = get_fases_por_orcamento(orc["id"])
+                        ordem = (max([int(x.get('ordem',0) or 0) for x in fases_exist]) + 1) if fases_exist else 1
+                        okf, msgf, novaf = create_fase(None, orc["id"], nova_fase_nome.strip() or f"Fase {ordem}", ordem)
+                        if okf:
+                            audit_insert("obra_fases", novaf)
+                            st.success(msgf)
+                            st.rerun()
+                        st.error(msgf) if not okf else None
+
+                fases = get_fases_por_orcamento(orc["id"])
+                if fases:
+                    serv_catalogo = get_servicos(ativo=True)
+                    csa, csb, csc, csd = st.columns([2,2,1,1])
+                    with csa:
+                        fase_sel = st.selectbox("Fase", options=[f["id"] for f in fases], format_func=lambda x: next((f"{f['ordem']}. {f['nome_fase']}" for f in fases if f['id']==x),"-"), key=f"fase_sel_{orc['id']}")
+                    with csb:
+                        serv_sel = st.selectbox("Serviço", options=[s['id'] for s in serv_catalogo] if serv_catalogo else [], format_func=lambda x: next((sv['nome'] for sv in serv_catalogo if sv['id']==x), "-"), key=f"serv_sel_{orc['id']}")
+                    with csc:
+                        qtd = st.number_input("Qtd", min_value=0.1, value=1.0, step=0.5, key=f"qtd_{orc['id']}")
+                    with csd:
+                        valor = st.number_input("Vlr Unit", min_value=0.0, value=0.0, step=50.0, key=f"vu_{orc['id']}")
+
+                    if st.button("Adicionar item", key=f"add_item_{orc['id']}"):
+                        oks, msgs = add_servico_fase(fase_sel, serv_sel, float(qtd), float(valor), "", orc["id"])
+                        if oks:
+                            st.success(msgs)
+                            st.rerun()
+                        st.error(msgs) if not oks else None
 
         st.markdown("---")

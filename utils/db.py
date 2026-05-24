@@ -401,7 +401,21 @@ def create_orcamento(obra_id: int) -> tuple[bool, str, dict]:
             'valor_total_final': 0
         }).execute()
         
-        return True, f"Orçamento v{nova_versao} criado!", response.data[0]
+        novo = response.data[0]
+
+        if criar_fases_padrao:
+            # orçamento independente: cria fases com obra_id nulo
+            fases = [{
+                'obra_id': None,
+                'orcamento_id': novo['id'],
+                'nome_fase': fase['nome_fase'],
+                'ordem': fase['ordem'],
+                'status': 'PENDENTE',
+                'valor_fase': 0
+            } for fase in FASES_PADRAO]
+            supabase.table('obra_fases').insert(fases).execute()
+
+        return True, f"Orçamento v{nova_versao} criado!", novo
         
     except Exception as e:
         return False, f"Erro ao criar orçamento: {e}", {}
@@ -545,7 +559,7 @@ def get_orcamentos(busca: str = "", status: Optional[str] = None, cliente_id: Op
         return []
 
 
-def create_orcamento_por_cliente(cliente_id: int) -> tuple[bool, str, dict]:
+def create_orcamento_por_cliente(cliente_id: int, criar_fases_padrao: bool = True) -> tuple[bool, str, dict]:
     """Cria novo orçamento independente, vinculado apenas ao cliente."""
     try:
         supabase = get_supabase_client()
@@ -571,7 +585,21 @@ def create_orcamento_por_cliente(cliente_id: int) -> tuple[bool, str, dict]:
             'valor_total_final': 0
         }).execute()
 
-        return True, f"Orçamento v{nova_versao} criado!", response.data[0]
+        novo = response.data[0]
+
+        if criar_fases_padrao:
+            # orçamento independente: cria fases com obra_id nulo
+            fases = [{
+                'obra_id': None,
+                'orcamento_id': novo['id'],
+                'nome_fase': fase['nome_fase'],
+                'ordem': fase['ordem'],
+                'status': 'PENDENTE',
+                'valor_fase': 0
+            } for fase in FASES_PADRAO]
+            supabase.table('obra_fases').insert(fases).execute()
+
+        return True, f"Orçamento v{nova_versao} criado!", novo
     except Exception as e:
         return False, f"Erro ao criar orçamento: {e}", {}
 
