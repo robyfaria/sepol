@@ -22,3 +22,18 @@ Este repositório foi reiniciado do absoluto zero para construir um novo sistema
 4. Implementar vínculo com obra e gestão de fases/serviços.
 5. Implementar financeiro (receitas, custos, lucro por obra e consolidado).
 
+
+## Testar fluxo do Supabase Action localmente
+
+1. Instale o Supabase CLI:
+   - `npm i -g supabase`
+2. Exporte os segredos usados no workflow:
+   - `export SUPABASE_ACCESS_TOKEN=...`
+   - `export SUPABASE_PROJECT_REF=...`
+   - `export SUPABASE_DB_PASSWORD=...`
+3. Rode apenas validação (sem alterar remoto):
+   - `./scripts/test_supabase_action.sh --check-only`
+4. Rode o fluxo completo (link + push):
+   - `./scripts/test_supabase_action.sh`
+
+Dica: se o ambiente já estiver autenticado no CLI, use `--skip-login`.
