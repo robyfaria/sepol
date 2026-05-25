@@ -17,6 +17,10 @@ from utils.db import (
     create_fase,
     get_servicos,
     add_servico_fase,
+    update_fase,
+    delete_fase,
+    update_servico_fase,
+    delete_servico_fase,
 )
 from utils.auditoria import audit_insert, audit_update
 from utils.pdf import gerar_pdf_orcamento
@@ -153,13 +157,49 @@ else:
                 if not fases:
                     st.warning("Este orçamento está sem fases. Adicione a primeira fase abaixo.")
                 for f in fases:
-                    st.markdown(f"• {f.get('ordem', '-')}. {f.get('nome_fase', '-')}")
+                    pf1, pf2, pf3 = st.columns([5,2,1])
+                    with pf1:
+                        st.markdown(f"**{f.get('ordem', '-')}. {f.get('nome_fase', '-')}**")
+                    with pf2:
+                        novo_nome = st.text_input("Renomear fase", value=f.get('nome_fase', ''), key=f"fase_nome_{orc['id']}_{f['id']}", label_visibility="collapsed")
+                    with pf3:
+                        if st.button("💾", key=f"fase_save_{orc['id']}_{f['id']}"):
+                            ok_up, msg_up = update_fase(f['id'], {'nome_fase': novo_nome})
+                            if ok_up:
+                                st.success(msg_up)
+                                st.rerun()
+                            st.error(msg_up) if not ok_up else None
+                    if st.button("🗑️ Excluir fase", key=f"fase_del_{orc['id']}_{f['id']}"):
+                        ok_del, msg_del = delete_fase(f['id'])
+                        if ok_del:
+                            st.success(msg_del)
+                            st.rerun()
+                        st.error(msg_del) if not ok_del else None
+
                     itens = get_servicos_fase(f["id"])
                     for it in itens:
                         nome = (it.get("servicos") or {}).get("nome", "Serviço")
-                        qtd = float(it.get("quantidade", 0) or 0)
-                        vu = float(it.get("valor_unit", 0) or 0)
-                        st.caption(f"   - {nome}: {qtd:g} x R$ {vu:,.2f}")
+                        i1, i2, i3, i4, i5 = st.columns([3,1,1,1,1])
+                        with i1:
+                            st.caption(nome)
+                        with i2:
+                            qtd_edit = st.number_input("Qtd", min_value=0.1, value=float(it.get('quantidade', 1) or 1), step=0.5, key=f"it_qtd_{it['id']}")
+                        with i3:
+                            vu_edit = st.number_input("Vlr", min_value=0.0, value=float(it.get('valor_unit', 0) or 0), step=50.0, key=f"it_vu_{it['id']}")
+                        with i4:
+                            if st.button("💾", key=f"it_save_{it['id']}"):
+                                ok_it, msg_it = update_servico_fase(it['id'], {'quantidade': float(qtd_edit), 'valor_unit': float(vu_edit)}, orc['id'])
+                                if ok_it:
+                                    st.success(msg_it)
+                                    st.rerun()
+                                st.error(msg_it) if not ok_it else None
+                        with i5:
+                            if st.button("🗑️", key=f"it_del_{it['id']}"):
+                                ok_rm, msg_rm = delete_servico_fase(it['id'], orc['id'])
+                                if ok_rm:
+                                    st.success(msg_rm)
+                                    st.rerun()
+                                st.error(msg_rm) if not ok_rm else None
 
                 st.markdown("---")
                 cfa, cfb = st.columns([3,1])
