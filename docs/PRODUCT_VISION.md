@@ -3,13 +3,28 @@
 ## Objetivo principal
 Permitir que a equipe gere orçamentos rapidamente, com linguagem simples e poucos cliques.
 
+
+## Objetivos por etapa
+- **Objetivo inicial:** começar com o módulo de orçamentos.
+- **Objetivo intermediário:** controlar obras, alocações e pagamentos de profissionais.
+- **Objetivo final:** relatórios financeiros e apuração de resultados.
+
 ## Regras de negócio centrais
-1. Orçamento começa em rascunho.
-2. Só após aprovação pode virar obra.
-3. Obra possui fases flexíveis e serviços por fase.
-4. É possível alocar pintores e terceiros por serviço.
-5. Registrar recebimentos de clientes e pagamentos de profissionais.
-6. Exibir lucro por obra e visão financeira consolidada.
+1. Orçamento segue a estrutura obrigatória: Orçamento > Fases > Serviços.
+2. Cada orçamento pertence a 1 cliente e deve ter pelo menos 1 fase e 1 serviço por fase.
+3. Orçamento contém: número (ID único), descrição, cliente, data de emissão, previsão de início (opcional), previsão de término (opcional), status e total mão-de-obra.
+4. Serviços possuem descrição, quantidade (decimal; padrão 1), valor unitário e valor total (quantidade x valor unitário).
+5. Fase possui descrição e subtotal (soma dos totais dos serviços da fase).
+6. Total mão-de-obra do orçamento é a soma dos subtotais das fases.
+7. Orçamento possui versionamento: rascunho inicia em v1; após emitido, cada edição gera nova versão.
+8. Status: Rascunho, Emitido, Aprovado, Cancelado.
+9. Emitido permite aprovar/cancelar e gerar/imprimir PDF.
+10. Aprovado bloqueia edição, cancelamento e PDF; é a versão usada para vincular à obra.
+11. Cancelado bloqueia PDF e representa reprovado, sem resposta ou fora do ROC esperado.
+12. Orçamento considera somente mão de obra (sem material).
+13. Permitir consulta de orçamentos por número, nome do orçamento, nome do cliente e status.
+14. Depois de aprovado o orçamento, inicia o módulo de Obras com registro de alocação, pagamentos de profissionais e recebimentos de clientes.
+15. Na sequência, o módulo financeiro deve consolidar conta corrente por obra, por mês e por período.
 
 ## Princípios de UX para 60+
 - Fonte maior e alto contraste.
