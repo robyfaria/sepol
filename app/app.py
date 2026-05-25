@@ -18,6 +18,16 @@ from supabase import Client, create_client
 st.set_page_config(page_title="SEPOL 2.0", page_icon="🧱", layout="wide")
 
 
+def _to_iso_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return str(value)
+
+
 def inject_theme() -> None:
     st.markdown(
         """
@@ -119,8 +129,8 @@ def salvar_orcamento_db(sb: Client) -> str:
         "descricao": o["descricao"],
         "cliente_id": cliente["id"],
         "data_emissao": o["data_emissao"],
-        "previsao_inicio": o["previsao_inicio"],
-        "previsao_termino": o["previsao_termino"],
+        "previsao_inicio": _to_iso_or_none(o["previsao_inicio"]),
+        "previsao_termino": _to_iso_or_none(o["previsao_termino"]),
         "status": "Rascunho",
         "versao": 1,
         "total_mao_obra": float(sum(Decimal(str(s["total"])) for s in st.session_state.servicos)),
@@ -168,8 +178,10 @@ def app_view(sb: Client) -> None:
         o["cliente_endereco"] = col2.text_input("Endereço", value=o["cliente_endereco"])
         o["cliente_indicacao"] = col1.text_input("Indicação", value=o["cliente_indicacao"])
         o["data_emissao"] = str(col2.date_input("Data de emissão", value=date.fromisoformat(o["data_emissao"])))
-        o["previsao_inicio"] = col1.date_input("Previsão de início (opcional)", value=None)
-        o["previsao_termino"] = col2.date_input("Previsão de término (opcional)", value=None)
+        previsao_inicio = col1.date_input("Previsão de início (opcional)", value=None)
+        previsao_termino = col2.date_input("Previsão de término (opcional)", value=None)
+        o["previsao_inicio"] = _to_iso_or_none(previsao_inicio)
+        o["previsao_termino"] = _to_iso_or_none(previsao_termino)
 
     with st.container(border=True):
         st.subheader("Passo 2 — Fases e serviços")
