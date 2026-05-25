@@ -212,7 +212,10 @@ def gerar_pdf_orcamento(orcamento: dict, servicos: list[dict]) -> bytes:
     pdf.cell(0, 8, f"Subtotal: {money(subtotal)}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 8, f"Desconto ({orcamento.get('desconto_tipo','valor')}): {desconto}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 8, f"Total final: {money(float(orcamento.get('total_mao_obra') or 0))}", new_x="LMARGIN", new_y="NEXT")
-    return bytes(pdf.output(dest="S").encode("latin-1", errors="replace"))
+    raw = pdf.output(dest="S")
+    if isinstance(raw, (bytes, bytearray)):
+        return bytes(raw)
+    return str(raw).encode("latin-1", errors="replace")
 
 
 def aprovar_orcamento(sb: Client, orcamento_id: str) -> None:
