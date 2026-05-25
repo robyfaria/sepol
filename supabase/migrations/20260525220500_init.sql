@@ -1,5 +1,4 @@
--- RESET TOTAL (DESTRUTIVO): remove todos os objetos do schema public
--- e recria o schema limpo para recomeçar do zero.
+-- RESET TOTAL (DESTRUTIVO): remove todos os objetos do schema public e recria o schema limpo para recomeçar do zero.
 
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
