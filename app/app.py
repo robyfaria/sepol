@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import streamlit as st
 from fpdf import FPDF
+from fpdf.errors import FPDFException
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
@@ -171,27 +172,47 @@ def atualizar_orcamento_emitido(sb: Client, orc_id: str, payload: dict, servicos
 
 
 def gerar_pdf_orcamento(orcamento: dict, servicos: list[dict]) -> bytes:
+    def _safe_text(value: object) -> str:
+        return str(value or "").replace("\n", " ").replace("\r", " ").strip()
+
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 10, f"Orçamento {orcamento['numero']} - v{orcamento.get('versao', 1)}", ln=1)
+    pdf.cell(0, 10, f"Orçamento {orcamento['numero']} - v{orcamento.get('versao', 1)}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", size=10)
-    pdf.cell(0, 8, f"Cliente: {orcamento['cliente']['nome']}", ln=1)
-    pdf.cell(0, 8, f"Emissão: {orcamento['data_emissao']}", ln=1)
+    pdf.cell(0, 8, f"Cliente: {_safe_text(orcamento['cliente']['nome'])}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"Emissão: {_safe_text(orcamento['data_emissao'])}", new_x="LMARGIN", new_y="NEXT")
     if orcamento.get("previsao_inicio"):
-        pdf.cell(0, 8, f"Previsão início: {orcamento['previsao_inicio']}", ln=1)
+        pdf.cell(0, 8, f"Previsão início: {_safe_text(orcamento['previsao_inicio'])}", new_x="LMARGIN", new_y="NEXT")
     if orcamento.get("previsao_termino"):
-        pdf.cell(0, 8, f"Previsão término: {orcamento['previsao_termino']}", ln=1)
+        pdf.cell(0, 8, f"Previsão término: {_safe_text(orcamento['previsao_termino'])}", new_x="LMARGIN", new_y="NEXT")
+
     pdf.ln(2)
+    text_w = pdf.w - pdf.l_margin - pdf.r_margin
     for s in servicos:
-        pdf.multi_cell(0, 7, f"Fase: {s['fase']} | Serviço: {s['servico']} | Qtd: {s['quantidade']} | Unit: {money(s['valor_unitario'])} | Total: {money(s['total'])}")
+        linha = (
+            f"Fase: {_safe_text(s['fase'])} | Serviço: {_safe_text(s['servico'])} | "
+            f"Qtd: {_safe_text(s['quantidade'])} | Unit: {money(float(s['valor_unitario']))} | "
+            f"Total: {money(float(s['total']))}"
+        )
+        pdf.set_x(pdf.l_margin)
+        try:
+            pdf.multi_cell(text_w, 7, linha, new_x="LMARGIN", new_y="NEXT")
+        except FPDFException:
+            # Fallback defensivo para textos extremos/inesperados
+            pdf.multi_cell(text_w, 7, f"Fase: {_safe_text(s['fase'])}", new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(text_w, 7, f"Serviço: {_safe_text(s['servico'])}", new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(text_w, 7, f"Qtd: {_safe_text(s['quantidade'])} | Unit: {money(float(s['valor_unitario']))}", new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(text_w, 7, f"Total: {money(float(s['total']))}", new_x="LMARGIN", new_y="NEXT")
+
     subtotal = float(orcamento.get("subtotal_mao_obra") or orcamento.get("total_mao_obra") or 0)
     desconto = float(orcamento.get("desconto_valor") or 0)
     pdf.ln(2)
-    pdf.cell(0, 8, f"Subtotal: {money(subtotal)}", ln=1)
-    pdf.cell(0, 8, f"Desconto ({orcamento.get('desconto_tipo','valor')}): {desconto}", ln=1)
-    pdf.cell(0, 8, f"Total final: {money(float(orcamento.get('total_mao_obra') or 0))}", ln=1)
-    return bytes(pdf.output(dest="S").encode("latin-1"))
+    pdf.cell(0, 8, f"Subtotal: {money(subtotal)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"Desconto ({orcamento.get('desconto_tipo','valor')}): {desconto}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"Total final: {money(float(orcamento.get('total_mao_obra') or 0))}", new_x="LMARGIN", new_y="NEXT")
+    return bytes(pdf.output(dest="S").encode("latin-1", errors="replace"))
 
 
 def aprovar_orcamento(sb: Client, orcamento_id: str) -> None:
@@ -334,7 +355,7 @@ def app_view(sb: Client) -> None:
             if item["status"] != "Cancelado":
                 orc_pdf, srv_pdf = carregar_orcamento_detalhado(sb, item["id"])
                 pdf_bytes = gerar_pdf_orcamento(orc_pdf, srv_pdf)
-                st.download_button("Baixar PDF", data=BytesIO(pdf_bytes), file_name=f"orcamento_{item['numero']}.pdf", mime="application/pdf", key=f"pdf_{item['id']}")
+                st.download_button("Baixar PDF", data=pdf_bytes, file_name=f"orcamento_{item['numero']}.pdf", mime="application/pdf", key=f"pdf_{item['id']}")
 
     if st.button("Sair"):
         st.session_state.auth = False
