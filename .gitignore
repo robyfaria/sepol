@@ -1,22 +1,12 @@
-# ---- Python / Streamlit ----
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-
-# Virtual env
-.venv/
-venv/
-ENV/
-env/
-
-# Streamlit secrets
-.streamlit/secrets.toml
-
-# dotenv secrets
+# Ambiente
 .env
-.env.*
-!.env.example
+.venv/
+__pycache__/
+*.pyc
 
-# OS / misc
-*.sqlite3
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
