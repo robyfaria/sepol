@@ -67,6 +67,20 @@ def init_state() -> None:
     st.session_state.setdefault("orcamento_id", None)
 
 
+def _reset_orcamento_form() -> None:
+    st.session_state.orcamento = {
+        "numero": f"{date.today().year}-001",
+        "descricao": "",
+        "cliente_nome": "",
+        "cliente_endereco": "",
+        "cliente_indicacao": "",
+        "data_emissao": str(date.today()),
+        "previsao_inicio": None,
+        "previsao_termino": None,
+    }
+    st.session_state.servicos = []
+
+
 def login_view() -> None:
     st.title("Entrar no SEPOL 2.0")
     st.caption("Login mínimo para protótipo (usuário gravado no Supabase).")
@@ -226,7 +240,8 @@ def app_view(sb: Client) -> None:
                 oid = salvar_orcamento_db(sb)
                 sb.table("orcamentos").update({"status": "Emitido"}).eq("id", oid).execute()
                 st.success(f"Orçamento emitido com sucesso. ID: {oid}")
-                st.session_state.servicos = []
+                _reset_orcamento_form()
+                st.rerun()
             except APIError as exc:
                 st.error("Não foi possível emitir o orçamento no Supabase.")
                 st.caption("Verifique se as migrations foram aplicadas e se a chave usada possui permissão de INSERT/UPDATE.")
@@ -248,7 +263,25 @@ def app_view(sb: Client) -> None:
             query = query.eq("status", q_status)
 
         data = query.execute().data
-        st.dataframe(data, use_container_width=True, hide_index=True)
+        rows = []
+        for item in data:
+            cliente = item.get("cliente")
+            if isinstance(cliente, dict):
+                cliente_nome = cliente.get("nome", "")
+            else:
+                cliente_nome = ""
+
+            rows.append({
+                "id": item.get("id"),
+                "numero": item.get("numero"),
+                "descricao": item.get("descricao"),
+                "status": item.get("status"),
+                "total_mao_obra": item.get("total_mao_obra"),
+                "data_emissao": item.get("data_emissao"),
+                "cliente": cliente_nome,
+            })
+
+        st.dataframe(rows, use_container_width=True, hide_index=True)
     except APIError as exc:
         st.warning("Não foi possível carregar a consulta de orçamentos no Supabase.")
         st.caption(
