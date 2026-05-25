@@ -3,6 +3,12 @@
 ## Objetivo principal
 Permitir que a equipe gere orçamentos rapidamente, com linguagem simples e poucos cliques.
 
+
+## Objetivos por etapa
+- **Objetivo inicial:** começar com o módulo de orçamentos.
+- **Objetivo intermediário:** controlar obras, alocações e pagamentos de profissionais.
+- **Objetivo final:** relatórios financeiros e apuração de resultados.
+
 ## Regras de negócio centrais
 1. Orçamento segue a estrutura obrigatória: Orçamento > Fases > Serviços.
 2. Cada orçamento pertence a 1 cliente e deve ter pelo menos 1 fase e 1 serviço por fase.
@@ -17,6 +23,8 @@ Permitir que a equipe gere orçamentos rapidamente, com linguagem simples e pouc
 11. Cancelado bloqueia PDF e representa reprovado, sem resposta ou fora do ROC esperado.
 12. Orçamento considera somente mão de obra (sem material).
 13. Permitir consulta de orçamentos por número, nome do orçamento, nome do cliente e status.
+14. Depois de aprovado o orçamento, inicia o módulo de Obras com registro de alocação, pagamentos de profissionais e recebimentos de clientes.
+15. Na sequência, o módulo financeiro deve consolidar conta corrente por obra, por mês e por período.
 
 ## Princípios de UX para 60+
 - Fonte maior e alto contraste.

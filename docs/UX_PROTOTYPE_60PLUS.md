@@ -152,6 +152,12 @@ Este documento define o protótipo inicial para a experiência do novo app SEPOL
 6. Consulta por número, nome do orçamento, cliente e status está definida.
 7. Requisitos mínimos de acessibilidade estão definidos.
 
+## 10) Evolução do produto após aprovação do orçamento
+
+- Após o orçamento ser **Aprovado**, segue o desenvolvimento do **Módulo de Obras**.
+- O Módulo de Obras deve contemplar: alocação de profissionais, pagamentos de profissionais e recebimentos de clientes.
+- Em seguida, segue o **Módulo Financeiro** com conta corrente por obra, por mês e por período, para apuração de resultados.
+
 ---
 
 Com este protótipo fechado, o próximo passo do roadmap é implementar o módulo de orçamento em 3 passos aderente às regras acima.
