@@ -1,260 +1,222 @@
-"""Protótipo SEPOL 2.0 com login mínimo e fluxo de orçamento em 3 passos.
+"""SEPOL 2.0 - Protótipo Streamlit + Supabase.
 
 Execução:
-    python app.py
+    streamlit run app.py
 """
 
 from __future__ import annotations
 
+import os
 from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
-from flask import Flask, redirect, render_template_string, request, session, url_for
+import streamlit as st
+from supabase import Client, create_client
 
-app = Flask(__name__)
-app.secret_key = "sepol-prototipo-dev"
-
-USUARIO_PADRAO = "admin"
-SENHA_PADRAO = "1234"
-
-HTML = """
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SEPOL 2.0</title>
-  <style>
-    :root { --bg:#F8FAFC; --txt:#0F172A; --muted:#334155; --primary:#0EA5E9; --ok:#16A34A; --err:#DC2626; --border:#CBD5E1; }
-    body { font-family: Arial, sans-serif; background:var(--bg); color:var(--txt); margin:0; font-size:18px; line-height:1.5; }
-    .container { max-width:980px; margin: 0 auto; padding:24px; }
-    .card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px; margin:14px 0; }
-    h1 { font-size:30px; margin:0 0 8px; }
-    h2 { font-size:24px; margin:0 0 10px; }
-    .muted { color:var(--muted); }
-    label { display:block; font-weight:600; margin-top:10px; }
-    input { width:100%; max-width:420px; min-height:44px; font-size:18px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
-    button, .btn { min-height:44px; font-size:18px; border:0; border-radius:8px; padding:8px 14px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
-    table { width:100%; border-collapse:collapse; margin-top:12px; }
-    th, td { border-bottom:1px solid var(--border); text-align:left; padding:10px 6px; }
-    .ok { color:var(--ok); font-weight:700; }
-    .err { color:var(--err); font-weight:700; }
-    .steps { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; padding-left:18px; }
-  </style>
-</head>
-<body>
-  <main class="container">
-    {% if login %}
-      <section class="card">
-        <h1>Entrar no SEPOL 2.0</h1>
-        <p class="muted">Login mínimo para validar o fluxo do protótipo.</p>
-        {% if erro %}<p class="err">{{ erro }}</p>{% endif %}
-        <form method="post" action="{{ url_for('login') }}">
-          <label>Usuário
-            <input name="usuario" type="text" required placeholder="admin" />
-          </label>
-          <label>Senha
-            <input name="senha" type="password" required placeholder="1234" />
-          </label>
-          <p><button type="submit">Entrar</button></p>
-        </form>
-      </section>
-    {% else %}
-      <header>
-        <h1>Novo orçamento</h1>
-        <p class="muted">Olá, {{ usuario }}. Fluxo guiado em 3 passos.</p>
-      </header>
-      <ol class="steps">
-        <li>1. Dados</li>
-        <li>2. Fases e serviços</li>
-        <li>3. Revisão e emissão</li>
-      </ol>
-
-      <section class="card">
-        <h2>Passo 1 — Dados do orçamento</h2>
-        <form method="post" action="{{ url_for('salvar_orcamento') }}">
-          <label>Número
-            <input name="numero" value="{{ orc.numero }}" required />
-          </label>
-          <label>Descrição
-            <input name="descricao" value="{{ orc.descricao }}" required />
-          </label>
-          <label>Cliente
-            <input name="cliente" value="{{ orc.cliente }}" required />
-          </label>
-          <label>Data de emissão
-            <input name="emissao" type="date" value="{{ orc.emissao }}" required />
-          </label>
-          <p><button type="submit">Salvar dados</button></p>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Passo 2 — Fases e serviços</h2>
-        <form method="post" action="{{ url_for('adicionar_servico') }}">
-          <label>Fase
-            <input name="fase" required />
-          </label>
-          <label>Serviço
-            <input name="servico" required />
-          </label>
-          <label>Quantidade
-            <input name="quantidade" type="number" step="0.01" min="0.01" value="1" required />
-          </label>
-          <label>Valor unitário (R$)
-            <input name="valor_unitario" type="number" step="0.01" min="0.01" required />
-          </label>
-          <p><button type="submit">Adicionar serviço</button></p>
-        </form>
-
-        <table>
-          <thead><tr><th>Fase</th><th>Serviço</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-          <tbody>
-            {% for item in servicos %}
-              <tr><td>{{ item.fase }}</td><td>{{ item.servico }}</td><td>{{ item.quantidade }}</td><td>R$ {{ "%.2f"|format(item.valor_unitario) }}</td><td>R$ {{ "%.2f"|format(item.total) }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </section>
-
-      <section class="card">
-        <h2>Passo 3 — Revisão e emissão</h2>
-        <p>Total mão de obra: <strong>R$ {{ "%.2f"|format(total) }}</strong></p>
-        {% if msg %}<p class="ok">{{ msg }}</p>{% endif %}
-        {% if erro %}<p class="err">{{ erro }}</p>{% endif %}
-        <form method="post" action="{{ url_for('emitir') }}">
-          <button type="submit">Emitir orçamento</button>
-          <a class="btn" href="{{ url_for('logout') }}">Sair</a>
-        </form>
-      </section>
-    {% endif %}
-  </main>
-</body>
-</html>
-"""
+st.set_page_config(page_title="SEPOL 2.0", page_icon="🧱", layout="wide")
 
 
-def _estado_inicial() -> dict:
-    return {
+def inject_theme() -> None:
+    st.markdown(
+        """
+        <style>
+          .stApp { background: #F8FAFC; color: #0F172A; }
+          h1, h2, h3, p, label, div { color: #0F172A; }
+          .card { border:1px solid #CBD5E1; border-radius:12px; padding:18px; background:#ffffff; margin-bottom:14px; }
+          .step-chip { display:inline-block; background:#e2e8f0; color:#0F172A; border-radius:999px; padding:6px 14px; margin-right:8px; font-weight:600; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def get_supabase() -> Client:
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY", "")
+    if not url or not key:
+        raise RuntimeError("Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY).")
+    return create_client(url, key)
+
+
+def init_state() -> None:
+    st.session_state.setdefault("auth", False)
+    st.session_state.setdefault("user", "")
+    st.session_state.setdefault("orcamento", {
         "numero": f"{date.today().year}-001",
         "descricao": "",
-        "cliente": "",
-        "emissao": str(date.today()),
+        "cliente_nome": "",
+        "cliente_endereco": "",
+        "cliente_indicacao": "",
+        "data_emissao": str(date.today()),
+        "previsao_inicio": None,
+        "previsao_termino": None,
+    })
+    st.session_state.setdefault("servicos", [])
+    st.session_state.setdefault("orcamento_id", None)
+
+
+def login_view() -> None:
+    st.title("Entrar no SEPOL 2.0")
+    st.caption("Login mínimo para protótipo (conceito antigo com app.py).")
+    with st.form("login"):
+        usuario = st.text_input("Usuário", value="")
+        senha = st.text_input("Senha", type="password", value="")
+        ok = st.form_submit_button("Entrar")
+        if ok:
+            if usuario == "admin" and senha == "1234":
+                st.session_state.auth = True
+                st.session_state.user = usuario
+                st.success("Login realizado com sucesso.")
+                st.rerun()
+            st.error("Usuário ou senha inválidos.")
+
+
+def salvar_orcamento_db(sb: Client) -> str:
+    o = st.session_state.orcamento
+
+    cliente_payload = {
+        "nome": o["cliente_nome"],
+        "endereco": o["cliente_endereco"] or None,
+        "indicacao": o["cliente_indicacao"] or None,
     }
+    cliente = sb.table("clientes").insert(cliente_payload).execute().data[0]
 
-
-def _servicos() -> list[dict]:
-    return session.setdefault("servicos", [])
-
-
-@app.get("/")
-def home():
-    if "usuario" not in session:
-        return render_template_string(HTML, login=True, erro=session.pop("erro", None))
-
-    orc = session.setdefault("orcamento", _estado_inicial())
-    servicos = _servicos()
-    total = sum(item["total"] for item in servicos)
-    return render_template_string(
-        HTML,
-        login=False,
-        usuario=session["usuario"],
-        orc=orc,
-        servicos=servicos,
-        total=total,
-        msg=session.pop("msg", None),
-        erro=session.pop("erro", None),
-    )
-
-
-@app.post("/login")
-def login():
-    usuario = request.form.get("usuario", "").strip()
-    senha = request.form.get("senha", "").strip()
-
-    if usuario == USUARIO_PADRAO and senha == SENHA_PADRAO:
-        session.clear()
-        session["usuario"] = usuario
-        session["orcamento"] = _estado_inicial()
-        session["servicos"] = []
-        return redirect(url_for("home"))
-
-    session["erro"] = "Usuário ou senha inválidos."
-    return redirect(url_for("home"))
-
-
-@app.get("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("home"))
-
-
-@app.post("/orcamento")
-def salvar_orcamento():
-    if "usuario" not in session:
-        return redirect(url_for("home"))
-
-    session["orcamento"] = {
-        "numero": request.form.get("numero", "").strip(),
-        "descricao": request.form.get("descricao", "").strip(),
-        "cliente": request.form.get("cliente", "").strip(),
-        "emissao": request.form.get("emissao", "").strip(),
+    orc_payload = {
+        "numero": o["numero"],
+        "descricao": o["descricao"],
+        "cliente_id": cliente["id"],
+        "data_emissao": o["data_emissao"],
+        "previsao_inicio": o["previsao_inicio"],
+        "previsao_termino": o["previsao_termino"],
+        "status": "Rascunho",
+        "versao": 1,
+        "total_mao_obra": float(sum(Decimal(str(s["total"])) for s in st.session_state.servicos)),
     }
-    session["msg"] = "Dados do orçamento salvos."
-    return redirect(url_for("home"))
+    orcamento = sb.table("orcamentos").insert(orc_payload).execute().data[0]
+
+    fase_map: dict[str, str] = {}
+    for s in st.session_state.servicos:
+        if s["fase"] not in fase_map:
+            fase = sb.table("orcamento_fases").insert({
+                "orcamento_id": orcamento["id"],
+                "descricao": s["fase"],
+                "subtotal": 0,
+            }).execute().data[0]
+            fase_map[s["fase"]] = fase["id"]
+
+        sb.table("orcamento_servicos").insert({
+            "fase_id": fase_map[s["fase"]],
+            "descricao": s["servico"],
+            "quantidade": s["quantidade"],
+            "valor_unitario": s["valor_unitario"],
+            "valor_total": s["total"],
+        }).execute()
+
+    for nome_fase, fase_id in fase_map.items():
+        subtotal = sum(s["total"] for s in st.session_state.servicos if s["fase"] == nome_fase)
+        sb.table("orcamento_fases").update({"subtotal": subtotal}).eq("id", fase_id).execute()
+
+    st.session_state.orcamento_id = orcamento["id"]
+    return orcamento["id"]
 
 
-@app.post("/servicos")
-def adicionar_servico():
-    if "usuario" not in session:
-        return redirect(url_for("home"))
+def app_view(sb: Client) -> None:
+    st.title("Novo orçamento")
+    st.caption(f"Olá, {st.session_state.user}. Fluxo guiado em 3 passos (layout 60+).")
+    st.markdown('<span class="step-chip">1. Dados</span><span class="step-chip">2. Fases e serviços</span><span class="step-chip">3. Revisão e emissão</span>', unsafe_allow_html=True)
 
-    fase = request.form.get("fase", "").strip()
-    servico = request.form.get("servico", "").strip()
+    with st.container(border=True):
+        st.subheader("Passo 1 — Dados do orçamento")
+        o = st.session_state.orcamento
+        col1, col2 = st.columns(2)
+        o["numero"] = col1.text_input("Número", value=o["numero"])
+        o["descricao"] = col2.text_input("Descrição", value=o["descricao"])
+        o["cliente_nome"] = col1.text_input("Cliente", value=o["cliente_nome"])
+        o["cliente_endereco"] = col2.text_input("Endereço", value=o["cliente_endereco"])
+        o["cliente_indicacao"] = col1.text_input("Indicação", value=o["cliente_indicacao"])
+        o["data_emissao"] = str(col2.date_input("Data de emissão", value=date.fromisoformat(o["data_emissao"])))
+        o["previsao_inicio"] = col1.date_input("Previsão de início (opcional)", value=None)
+        o["previsao_termino"] = col2.date_input("Previsão de término (opcional)", value=None)
+
+    with st.container(border=True):
+        st.subheader("Passo 2 — Fases e serviços")
+        with st.form("novo_servico", clear_on_submit=True):
+            c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+            fase = c1.text_input("Fase")
+            servico = c2.text_input("Serviço")
+            quantidade = c3.number_input("Quantidade", min_value=0.01, step=1.0, value=1.0)
+            valor_unitario = c4.number_input("Valor unitário (R$)", min_value=0.01, step=10.0, value=100.0)
+            add = st.form_submit_button("Adicionar serviço")
+            if add:
+                st.session_state.servicos.append({
+                    "id": str(uuid4()),
+                    "fase": fase.strip(),
+                    "servico": servico.strip(),
+                    "quantidade": float(quantidade),
+                    "valor_unitario": float(valor_unitario),
+                    "total": float(quantidade * valor_unitario),
+                })
+                st.success("Serviço adicionado com sucesso.")
+
+        if st.session_state.servicos:
+            st.dataframe(st.session_state.servicos, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum serviço adicionado.")
+
+    with st.container(border=True):
+        st.subheader("Passo 3 — Revisão e emissão")
+        total = float(sum(s["total"] for s in st.session_state.servicos))
+        st.metric("Total mão-de-obra", f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+        emitir = st.button("Emitir orçamento")
+        if emitir:
+            if not st.session_state.orcamento["numero"] or not st.session_state.orcamento["descricao"] or not st.session_state.orcamento["cliente_nome"]:
+                st.error("Preencha número, descrição e cliente antes de emitir.")
+                return
+            if not st.session_state.servicos:
+                st.error("Adicione pelo menos 1 serviço antes de emitir.")
+                return
+
+            oid = salvar_orcamento_db(sb)
+            sb.table("orcamentos").update({"status": "Emitido"}).eq("id", oid).execute()
+            st.success(f"Orçamento emitido com sucesso. ID: {oid}")
+
+    st.divider()
+    st.subheader("Consulta de orçamentos")
+    q_numero = st.text_input("Filtro por número")
+    q_status = st.selectbox("Status", ["Todos", "Rascunho", "Emitido", "Aprovado", "Cancelado"])
+
+    query = sb.table("orcamentos").select("id,numero,descricao,status,total_mao_obra,data_emissao,clientes(nome)").order("created_at", desc=True).limit(50)
+    if q_numero:
+        query = query.ilike("numero", f"%{q_numero}%")
+    if q_status != "Todos":
+        query = query.eq("status", q_status)
+    data = query.execute().data
+    st.dataframe(data, use_container_width=True, hide_index=True)
+
+    if st.button("Sair"):
+        st.session_state.auth = False
+        st.session_state.user = ""
+        st.rerun()
+
+
+def main() -> None:
+    inject_theme()
+    init_state()
+
+    if not st.session_state.auth:
+        login_view()
+        return
 
     try:
-        quantidade = float(request.form.get("quantidade", "0"))
-        valor_unitario = float(request.form.get("valor_unitario", "0"))
-    except ValueError:
-        quantidade, valor_unitario = 0, 0
+        sb = get_supabase()
+    except Exception as exc:
+        st.error(f"Erro de configuração Supabase: {exc}")
+        return
 
-    if not fase or not servico or quantidade <= 0 or valor_unitario <= 0:
-        session["erro"] = "Preencha fase, serviço, quantidade e valor unitário válidos."
-        return redirect(url_for("home"))
-
-    _servicos().append(
-        {
-            "id": str(uuid4()),
-            "fase": fase,
-            "servico": servico,
-            "quantidade": quantidade,
-            "valor_unitario": valor_unitario,
-            "total": quantidade * valor_unitario,
-        }
-    )
-    session["msg"] = "Serviço adicionado com sucesso."
-    return redirect(url_for("home"))
-
-
-@app.post("/emitir")
-def emitir():
-    if "usuario" not in session:
-        return redirect(url_for("home"))
-
-    orc = session.get("orcamento", _estado_inicial())
-    servicos = _servicos()
-
-    if not all([orc.get("numero"), orc.get("descricao"), orc.get("cliente"), orc.get("emissao")]):
-        session["erro"] = "Preencha todos os dados do orçamento antes de emitir."
-        return redirect(url_for("home"))
-
-    if len(servicos) == 0:
-        session["erro"] = "Adicione pelo menos 1 serviço antes de emitir."
-        return redirect(url_for("home"))
-
-    session["msg"] = "Orçamento emitido com sucesso (protótipo)."
-    return redirect(url_for("home"))
+    app_view(sb)
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()

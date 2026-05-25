@@ -1,11 +1,21 @@
-# App base
+# App base (conceito antigo: app.py + Python + Streamlit + Supabase)
 
-Protótipo em `app.py` retomando o conceito antigo de aplicação Python, agora com:
+Protótipo refeito mantendo o conceito anterior solicitado:
 
-- Tela de login mínima.
-- Fluxo de orçamento em 3 passos.
-- Cálculo de total de mão de obra.
-- Emissão simulada com validações básicas.
+- `app.py` como ponto de entrada único.
+- Streamlit para UI.
+- Supabase para persistência.
+- Login mínimo para acesso ao fluxo.
+
+## Funcionalidades atuais
+
+- Login local mínimo (`admin` / `1234`).
+- Fluxo de orçamento em 3 passos:
+  1. Dados do orçamento e cliente.
+  2. Fases e serviços.
+  3. Revisão e emissão.
+- Persistência no Supabase em tabelas normalizadas.
+- Consulta de orçamentos com filtro por número e status.
 
 ## Executar
 
@@ -14,12 +24,13 @@ cd app
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python app.py
+export SUPABASE_URL="https://<seu-projeto>.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="<sua-service-role-key>"
+streamlit run app.py
 ```
 
-Acesse: `http://127.0.0.1:5000`
+## Banco de dados
 
-## Login de teste
+As tabelas deste protótipo ficam na migration:
 
-- Usuário: `admin`
-- Senha: `1234`
+- `supabase/migrations/20260525233000_budget_module_init.sql`
