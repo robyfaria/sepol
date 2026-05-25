@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 from uuid import uuid4
 
 import streamlit as st
