@@ -59,23 +59,41 @@ def init_state() -> None:
 
 def login_view() -> None:
     st.title("Entrar no SEPOL 2.0")
-    st.caption("Login mínimo para protótipo (conceito antigo com app.py).")
+    st.caption("Login mínimo para protótipo (usuário gravado no Supabase).")
     with st.form("login"):
         usuario = st.text_input("Usuário", value="")
         senha = st.text_input("Senha", type="password", value="")
         ok = st.form_submit_button("Entrar")
         if ok:
-            if usuario == "admin" and senha == "1234":
-                st.session_state.auth = True
-                st.session_state.user = usuario
-                st.success("Login realizado com sucesso.")
-                st.rerun()
-            st.error("Usuário ou senha inválidos.")
+            try:
+                sb = get_supabase()
+                resp = (
+                    sb.table("app_usuarios")
+                    .select("usuario,ativo")
+                    .eq("usuario", usuario.strip())
+                    .eq("senha", senha.strip())
+                    .eq("ativo", True)
+                    .limit(1)
+                    .execute()
+                )
+                if resp.data:
+                    st.session_state.auth = True
+                    st.session_state.user = resp.data[0]["usuario"]
+                    st.success("Login realizado com sucesso.")
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha inválidos.")
+            except APIError as exc:
+                st.error("Não foi possível validar login no Supabase.")
+                st.code(str(exc), language="text")
+            except Exception as exc:
+                st.error(f"Erro de configuração: {exc}")
 
 
 def validar_ambiente_supabase(sb: Client) -> tuple[bool, str]:
     """Valida se tabelas mínimas estão acessíveis no PostgREST."""
     try:
+        sb.table("app_usuarios").select("id").limit(1).execute()
         sb.table("clientes").select("id").limit(1).execute()
         sb.table("orcamentos").select("id").limit(1).execute()
         sb.table("orcamento_fases").select("id").limit(1).execute()

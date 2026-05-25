@@ -34,3 +34,13 @@ streamlit run app.py
 As tabelas deste protótipo ficam na migration:
 
 - `supabase/migrations/20260525233000_budget_module_init.sql`
+
+
+## Usuário inicial gravado no banco
+
+A migration de usuários cria automaticamente:
+
+- Usuário: `admin`
+- Senha: `1234`
+
+Migration: `supabase/migrations/20260525234500_users_and_permissions.sql`
