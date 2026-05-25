@@ -1,3 +1,12 @@
+name: Supabase Push
+
+"on":
+  push:
+    branches: ["dev"]
+    paths:
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
 jobs:
   push-migrations:
     runs-on: ubuntu-latest
