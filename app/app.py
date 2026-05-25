@@ -12,6 +12,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import streamlit as st
+from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 st.set_page_config(page_title="SEPOL 2.0", page_icon="🧱", layout="wide")
@@ -70,6 +71,19 @@ def login_view() -> None:
                 st.success("Login realizado com sucesso.")
                 st.rerun()
             st.error("Usuário ou senha inválidos.")
+
+
+def validar_ambiente_supabase(sb: Client) -> tuple[bool, str]:
+    """Valida se tabelas mínimas estão acessíveis no PostgREST."""
+    try:
+        sb.table("clientes").select("id").limit(1).execute()
+        sb.table("orcamentos").select("id").limit(1).execute()
+        sb.table("orcamento_fases").select("id").limit(1).execute()
+        sb.table("orcamento_servicos").select("id").limit(1).execute()
+        return True, ""
+    except APIError as exc:
+        return False, str(exc)
+
 
 
 def salvar_orcamento_db(sb: Client) -> str:
@@ -178,22 +192,40 @@ def app_view(sb: Client) -> None:
                 st.error("Adicione pelo menos 1 serviço antes de emitir.")
                 return
 
-            oid = salvar_orcamento_db(sb)
-            sb.table("orcamentos").update({"status": "Emitido"}).eq("id", oid).execute()
-            st.success(f"Orçamento emitido com sucesso. ID: {oid}")
+            try:
+                oid = salvar_orcamento_db(sb)
+                sb.table("orcamentos").update({"status": "Emitido"}).eq("id", oid).execute()
+                st.success(f"Orçamento emitido com sucesso. ID: {oid}")
+                st.session_state.servicos = []
+            except APIError as exc:
+                st.error("Não foi possível emitir o orçamento no Supabase.")
+                st.caption("Verifique se as migrations foram aplicadas e se a chave usada possui permissão de INSERT/UPDATE.")
+                st.code(str(exc), language="text")
+                return
 
     st.divider()
     st.subheader("Consulta de orçamentos")
     q_numero = st.text_input("Filtro por número")
     q_status = st.selectbox("Status", ["Todos", "Rascunho", "Emitido", "Aprovado", "Cancelado"])
 
-    query = sb.table("orcamentos").select("id,numero,descricao,status,total_mao_obra,data_emissao,clientes(nome)").order("created_at", desc=True).limit(50)
-    if q_numero:
-        query = query.ilike("numero", f"%{q_numero}%")
-    if q_status != "Todos":
-        query = query.eq("status", q_status)
-    data = query.execute().data
-    st.dataframe(data, use_container_width=True, hide_index=True)
+    try:
+        query = sb.table("orcamentos").select(
+            "id,numero,descricao,status,total_mao_obra,data_emissao,cliente:clientes(nome)"
+        ).order("created_at", desc=True).limit(50)
+        if q_numero:
+            query = query.ilike("numero", f"%{q_numero}%")
+        if q_status != "Todos":
+            query = query.eq("status", q_status)
+
+        data = query.execute().data
+        st.dataframe(data, use_container_width=True, hide_index=True)
+    except APIError as exc:
+        st.warning("Não foi possível carregar a consulta de orçamentos no Supabase.")
+        st.caption(
+            "Confira se as migrations foram aplicadas e se as tabelas "
+            "clientes/orcamentos/orcamento_fases/orcamento_servicos existem."
+        )
+        st.code(str(exc), language="text")
 
     if st.button("Sair"):
         st.session_state.auth = False
@@ -213,6 +245,13 @@ def main() -> None:
         sb = get_supabase()
     except Exception as exc:
         st.error(f"Erro de configuração Supabase: {exc}")
+        return
+
+    ok, detalhe = validar_ambiente_supabase(sb)
+    if not ok:
+        st.error("Supabase indisponível para o módulo de orçamento.")
+        st.caption("Aplique as migrations e confirme permissões da chave (service role recomendada para protótipo).")
+        st.code(detalhe, language="text")
         return
 
     app_view(sb)
